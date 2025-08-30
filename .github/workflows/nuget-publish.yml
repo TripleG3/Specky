@@ -27,14 +27,18 @@ jobs:
             8.0.x
             9.0.x
 
-      - name: Restore
-        run: dotnet restore Specky.sln
+      - name: Restore dependencies
+        run: |
+          dotnet restore Specky7/Specky7.csproj
+          dotnet restore Specky7.Tests/Specky7.Tests.csproj
 
       - name: Build (Release)
-        run: dotnet build Specky.sln -c Release --no-restore
+        run: |
+          dotnet build Specky7/Specky7.csproj -c Release --no-restore
+          dotnet build Specky7.Tests/Specky7.Tests.csproj -c Release --no-restore
 
       - name: Test (Release)
-        run: dotnet test Specky.sln -c Release --no-build --verbosity normal
+        run: dotnet test Specky7.Tests/Specky7.Tests.csproj -c Release --no-build --verbosity normal
 
       - name: Pack
         run: >-
