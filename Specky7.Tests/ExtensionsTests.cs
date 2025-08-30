@@ -13,7 +13,7 @@ public class ExtensionsTests
         IServiceCollection serviceProvider = new MockServiceCollecton();
 
         //Act and Assert
-        Assert.ThrowsException<TypeAccessException>(() =>
+        Assert.ThrowsException<SpeckyException>(() =>
         {
             serviceProvider.AddSpecks(opts =>
             {
@@ -29,7 +29,7 @@ public class ExtensionsTests
         IServiceCollection serviceProvider = new MockServiceCollecton();
 
         //Act and Assert
-        Assert.ThrowsException<TypeAccessException>(() =>
+        Assert.ThrowsException<SpeckyException>(() =>
         {
             serviceProvider.AddSpecks(opts =>
             {
