@@ -1,0 +1,72 @@
+name: Build & Publish NuGet
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+concurrency:
+  group: nuget-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-test-pack-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET (6, 8, 9)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            6.0.x
+            8.0.x
+            9.0.x
+
+      - name: Restore
+        run: dotnet restore Specky.sln
+
+      - name: Build (Release)
+        run: dotnet build Specky.sln -c Release --no-restore
+
+      - name: Test (Release)
+        run: dotnet test Specky.sln -c Release --no-build --verbosity normal
+
+      - name: Pack
+        run: >-
+          dotnet pack Specky7/Specky7.csproj
+          -c Release
+          --no-build
+          -o artifacts
+
+      - name: Publish NuGet Package
+        if: success()
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          if [ -z "${NUGET_API_KEY}" ]; then
+            echo "NUGET_API_KEY secret not set; skipping publish." && exit 0
+          fi
+          for file in artifacts/*.nupkg; do
+            echo "Publishing $file";
+            dotnet nuget push "$file" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate;
+          done
+          for file in artifacts/*.snupkg; do
+            echo "Publishing symbols $file";
+            dotnet nuget push "$file" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate;
+          done
+
+      - name: Summary
+        run: |
+          echo "## Specky7 Publish" >> $GITHUB_STEP_SUMMARY
+          echo "Commit: $GITHUB_SHA" >> $GITHUB_STEP_SUMMARY
+          echo "Packages in artifacts/:" >> $GITHUB_STEP_SUMMARY
+          ls -1 artifacts >> $GITHUB_STEP_SUMMARY
+
+    # Notes:
+    # - Set the repository secret NUGET_API_KEY with a valid NuGet.org API key.
+    # - Increment <Version> in Specky7.csproj (or add a suffix) to publish a new package; existing versions are skipped.
