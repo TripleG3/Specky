@@ -78,10 +78,12 @@ public static class Extensions
             return InjectInterfaceConfigurationsOnly(serviceCollection, localOptions);
         }
 
+        // Pre-compute a hash set of existing service descriptors for fast duplicate checking.
+        var existing = SpeckyCaches.BuildExistingDescriptorSet(serviceCollection.Cast<ServiceDescriptor>().ToList());
         var speckTypes = localOptions.Assemblies.SelectMany(SafeGetTypes);
         foreach (var implementationType in speckTypes)
         {
-            serviceCollection.ScanTypeAndInject(implementationType, localOptions);
+            serviceCollection.ScanTypeAndInject(implementationType, localOptions, existing);
         }
         return serviceCollection;
     }
@@ -100,6 +102,7 @@ public static class Extensions
 
     private static IServiceCollection InjectInterfaceConfigurationsOnly(IServiceCollection serviceCollection, SpeckyOptions options)
     {
+        var existing = SpeckyCaches.BuildExistingDescriptorSet(serviceCollection.Cast<ServiceDescriptor>().ToList());
         foreach (var iface in options.Configurations)
         {
             var speckyConfigurationAttribute = iface.GetCustomAttribute<SpeckyConfigurationAttribute>();
@@ -107,39 +110,39 @@ public static class Extensions
 
             if (options.Options.Count > 0)
             {
-                InjectInterfaceConfigurationsWithOptionsOnly(serviceCollection, iface, speckyConfigurationAttribute, options);
+                InjectInterfaceConfigurationsWithOptionsOnly(serviceCollection, iface, speckyConfigurationAttribute, options, existing);
                 continue;
             }
-            ScanAndInjectInterface(serviceCollection, iface, options);
+            ScanAndInjectInterface(serviceCollection, iface, options, existing);
         }
         return serviceCollection;
     }
 
-    private static void InjectInterfaceConfigurationsWithOptionsOnly(IServiceCollection serviceCollection, Type iface, SpeckyConfigurationAttribute speckyConfigurationAttribute, SpeckyOptions options)
+    private static void InjectInterfaceConfigurationsWithOptionsOnly(IServiceCollection serviceCollection, Type iface, SpeckyConfigurationAttribute speckyConfigurationAttribute, SpeckyOptions options, HashSet<ServiceTriple> existing)
     {
         if (options.Options.Contains(speckyConfigurationAttribute.Option))
         {
-            ScanAndInjectInterface(serviceCollection, iface, options);
+            ScanAndInjectInterface(serviceCollection, iface, options, existing);
         }
     }
 
-    private static void ScanAndInjectInterface(IServiceCollection serviceCollection, Type iface, SpeckyOptions options)
+    private static void ScanAndInjectInterface(IServiceCollection serviceCollection, Type iface, SpeckyOptions options, HashSet<ServiceTriple> existing)
     {
-        serviceCollection.ScanPropertiesFromConfigurationAndInject(iface, options);
-        serviceCollection.ScanFieldsAndInject(iface, options);
-        serviceCollection.ScanMethodsAndInject(iface, options);
+        serviceCollection.ScanPropertiesFromConfigurationAndInject(iface, options, existing);
+        serviceCollection.ScanFieldsAndInject(iface, options, existing);
+        serviceCollection.ScanMethodsAndInject(iface, options, existing);
     }
 
     //Primary - called first when needing to locate all specks and attempt injecting all.
-    internal static void ScanTypeAndInject(this IServiceCollection serviceCollection, Type implementationType, SpeckyOptions options)
+    internal static void ScanTypeAndInject(this IServiceCollection serviceCollection, Type implementationType, SpeckyOptions options, HashSet<ServiceTriple> existing)
     {
-        var specks = (SpeckAttribute[])implementationType.GetCustomAttributes(typeof(SpeckAttribute), false);
+    var specks = SpeckyCaches.GetTypeSpeckAttributes(implementationType);
         foreach (var speck in specks)
         {
             var serviceType = speck.ServiceType ?? implementationType;
             try
             {
-                serviceCollection.AddSpeck(serviceType, implementationType, speck.ServiceLifetime, options);
+                serviceCollection.AddSpeck(serviceType, implementationType, speck.ServiceLifetime, options, existing);
             }
             catch (TypeAccessException ex)
             {
@@ -155,18 +158,18 @@ public static class Extensions
         }
     }
 
-    internal static void ScanPropertiesFromConfigurationAndInject(this IServiceCollection serviceCollection, Type type, SpeckyOptions options)
+    internal static void ScanPropertiesFromConfigurationAndInject(this IServiceCollection serviceCollection, Type type, SpeckyOptions options, HashSet<ServiceTriple> existing)
     {
         var propertyInfos = type.GetProperties();
         foreach (var propertyInfo in propertyInfos)
         {
-            var specks = (SpeckAttribute[])propertyInfo.GetCustomAttributes(typeof(SpeckAttribute), false);
+            var specks = SpeckyCaches.GetSpeckAttributes((MemberInfo)propertyInfo);
             foreach (var speck in specks)
             {
                 var serviceType = speck.ServiceType ?? propertyInfo.PropertyType;
                 try
                 {
-                    serviceCollection.AddSpeck(serviceType, propertyInfo.PropertyType, speck.ServiceLifetime, options);
+                    serviceCollection.AddSpeck(serviceType, propertyInfo.PropertyType, speck.ServiceLifetime, options, existing);
                 }
                 catch (TypeAccessException ex)
                 {
@@ -177,11 +180,12 @@ public static class Extensions
         }
     }
 
-    internal static void ScanMethodsAndInject(this IServiceCollection serviceCollection, Type type, SpeckyOptions options)
+    internal static void ScanMethodsAndInject(this IServiceCollection serviceCollection, Type type, SpeckyOptions options, HashSet<ServiceTriple> existing)
     {
         foreach (var methodInfo in type.GetMethods())
         {
-            foreach (var speck in (SpeckAttribute[])methodInfo.GetCustomAttributes(typeof(SpeckAttribute), false))
+            var specks = SpeckyCaches.GetSpeckAttributes((MemberInfo)methodInfo);
+            foreach (var speck in specks)
             {
                 var serviceType = speck.ServiceType ?? methodInfo.ReturnType;
                 var implementationType = methodInfo.ReturnType;
@@ -189,7 +193,7 @@ public static class Extensions
 
                 try
                 {
-                    serviceCollection.AddSpeck(serviceType, implementationType, serviceLifetime, options);
+                    serviceCollection.AddSpeck(serviceType, implementationType, serviceLifetime, options, existing);
                 }
                 catch (TypeAccessException ex)
                 {
@@ -204,11 +208,12 @@ public static class Extensions
         }
     }
 
-    internal static void ScanFieldsAndInject(this IServiceCollection serviceCollection, Type type, SpeckyOptions options)
+    internal static void ScanFieldsAndInject(this IServiceCollection serviceCollection, Type type, SpeckyOptions options, HashSet<ServiceTriple> existing)
     {
         foreach (var fieldInfo in type.GetFields())
         {
-            foreach (var speck in (SpeckAttribute[])fieldInfo.GetCustomAttributes(typeof(SpeckAttribute), false))
+            var specks = SpeckyCaches.GetSpeckAttributes((MemberInfo)fieldInfo);
+            foreach (var speck in specks)
             {
                 var serviceType = speck.ServiceType ?? fieldInfo.FieldType;
                 var implementationType = fieldInfo.FieldType;
@@ -216,7 +221,7 @@ public static class Extensions
 
                 try
                 {
-                    serviceCollection.AddSpeck(serviceType, implementationType, serviceLifetime, options);
+                    serviceCollection.AddSpeck(serviceType, implementationType, serviceLifetime, options, existing);
                 }
                 catch (TypeAccessException ex)
                 {
@@ -227,7 +232,7 @@ public static class Extensions
         }
     }
 
-    internal static void AddSpeck(this IServiceCollection serviceCollection, Type serviceType, Type implementationType, ServiceLifetime serviceLifetime, SpeckyOptions options)
+    internal static void AddSpeck(this IServiceCollection serviceCollection, Type serviceType, Type implementationType, ServiceLifetime serviceLifetime, SpeckyOptions options, HashSet<ServiceTriple> existing)
     {
         if (!implementationType.IsAssignableTo(serviceType))
         {
@@ -238,9 +243,9 @@ public static class Extensions
             throw new SpeckyException($"Specky cannot inject {implementationType.Name} because it is an interface.\n{serviceType.Name}.{implementationType.Name}");
         }
         if (options.ConfigurationAddedServiceTypes.Contains(serviceType)) return;
-        // Skip duplicate exact registrations
-        if (serviceCollection.Any(sd => sd.ServiceType == serviceType && sd.ImplementationType == implementationType && sd.Lifetime == serviceLifetime)) return;
-        var serviceDescriptor = new ServiceDescriptor(serviceType, implementationType, serviceLifetime);
-        serviceCollection.Add(serviceDescriptor);
+        var triple = new ServiceTriple(serviceType, implementationType, serviceLifetime);
+        if (existing.Contains(triple)) return; // fast duplicate rejection
+        existing.Add(triple);
+        serviceCollection.Add(new ServiceDescriptor(serviceType, implementationType, serviceLifetime));
     }
 }
