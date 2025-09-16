@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Specky7;
 
 namespace Specky7.Tests;
 internal class A_Foo : IFooId, IFooTime
@@ -31,6 +32,25 @@ internal class A_FooTime : IFooId
 
 [Speck(ServiceLifetime.Transient)]
 internal class B_FooTime : IFooId
+{
+    public int Id { get; set; }
+}
+
+// Keyed test types
+[SingletonKeyed<IFooTime>("TimeKey1")]
+internal class Keyed_Time_Singleton : IFooTime
+{
+    public DateTime Time { get; set; }
+}
+
+[ScopedKeyed<IFooId>("IdKeyScoped")]
+internal class Keyed_Id_Scoped : IFooId
+{
+    public int Id { get; set; }
+}
+
+[TransientKeyed<IFooId>("IdKeyTransient")]
+internal class Keyed_Id_Transient : IFooId
 {
     public int Id { get; set; }
 }

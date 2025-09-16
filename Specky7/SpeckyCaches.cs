@@ -19,7 +19,7 @@ internal static class SpeckyCaches
         => _memberSpeckCache.GetOrAdd(member, m => (SpeckAttribute[])m.GetCustomAttributes(typeof(SpeckAttribute), false));
 
     /// <summary>
-    /// Builds a hash set of existing (service, implementation, lifetime) tuples for fast duplicate rejection.
+    /// Builds a hash set of existing (service, implementation, lifetime, key) tuples for fast duplicate rejection.
     /// </summary>
     public static HashSet<ServiceTriple> BuildExistingDescriptorSet(IReadOnlyCollection<ServiceDescriptor> descriptors)
     {
@@ -28,20 +28,20 @@ internal static class SpeckyCaches
         {
             if (d.ImplementationType != null)
             {
-                set.Add(new ServiceTriple(d.ServiceType, d.ImplementationType, d.Lifetime));
+                set.Add(new ServiceTriple(d.ServiceType, d.ImplementationType, d.Lifetime, d.ServiceKey));
             }
         }
         return set;
     }
 }
 
-internal readonly record struct ServiceTriple(Type ServiceType, Type ImplementationType, ServiceLifetime Lifetime)
+internal readonly record struct ServiceTriple(Type ServiceType, Type ImplementationType, ServiceLifetime Lifetime, object? Key)
 {
     public static IEqualityComparer<ServiceTriple> Comparer { get; } = new TripleComparer();
     private sealed class TripleComparer : IEqualityComparer<ServiceTriple>
     {
         public bool Equals(ServiceTriple x, ServiceTriple y)
-            => x.ServiceType == y.ServiceType && x.ImplementationType == y.ImplementationType && x.Lifetime == y.Lifetime;
+            => x.ServiceType == y.ServiceType && x.ImplementationType == y.ImplementationType && x.Lifetime == y.Lifetime && Equals(x.Key, y.Key);
         public int GetHashCode(ServiceTriple obj)
         {
             unchecked
@@ -49,6 +49,7 @@ internal readonly record struct ServiceTriple(Type ServiceType, Type Implementat
                 var h = obj.ServiceType.GetHashCode();
                 h = (h * 397) ^ obj.ImplementationType.GetHashCode();
                 h = (h * 397) ^ (int)obj.Lifetime;
+                h = (h * 397) ^ (obj.Key?.GetHashCode() ?? 0);
                 return h;
             }
         }

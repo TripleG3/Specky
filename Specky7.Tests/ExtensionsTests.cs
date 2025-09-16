@@ -70,7 +70,7 @@ public class ExtensionsTests
         serviceProvider.AddSpecks<ExtensionsTests>();
 
         //Assert
-        Assert.AreEqual(4, serviceProvider.Count);
+        Assert.AreEqual(7, serviceProvider.Count);
         var a = serviceProvider.Any(x => x.ServiceType == typeof(IFooTime)
         && x.ImplementationType == typeof(B_Foo)
         && x.Lifetime == ServiceLifetime.Singleton);
@@ -87,9 +87,30 @@ public class ExtensionsTests
         && x.ImplementationType == typeof(B_FooTime)
         && x.Lifetime == ServiceLifetime.Transient);
 
+        var keyedSingleton = serviceProvider.Any(x => x.ServiceType == typeof(IFooTime)
+        && x.IsKeyedService
+        && x.KeyedImplementationType == typeof(Keyed_Time_Singleton)
+        && x.Lifetime == ServiceLifetime.Singleton
+        && x.ServiceKey?.Equals("TimeKey1") == true);
+
+        var keyedScoped = serviceProvider.Any(x => x.ServiceType == typeof(IFooId)
+        && x.IsKeyedService
+        && x.KeyedImplementationType == typeof(Keyed_Id_Scoped)
+        && x.Lifetime == ServiceLifetime.Scoped
+        && x.ServiceKey?.Equals("IdKeyScoped") == true);
+
+        var keyedTransient = serviceProvider.Any(x => x.ServiceType == typeof(IFooId)
+        && x.IsKeyedService
+        && x.KeyedImplementationType == typeof(Keyed_Id_Transient)
+        && x.Lifetime == ServiceLifetime.Transient
+        && x.ServiceKey?.Equals("IdKeyTransient") == true);
+
         Assert.IsTrue(a);
         Assert.IsTrue(b);
         Assert.IsTrue(c);
         Assert.IsTrue(d);
+        Assert.IsTrue(keyedSingleton);
+        Assert.IsTrue(keyedScoped);
+        Assert.IsTrue(keyedTransient);
     }
 }

@@ -136,13 +136,13 @@ public static class Extensions
     //Primary - called first when needing to locate all specks and attempt injecting all.
     internal static void ScanTypeAndInject(this IServiceCollection serviceCollection, Type implementationType, SpeckyOptions options, HashSet<ServiceTriple> existing)
     {
-    var specks = SpeckyCaches.GetTypeSpeckAttributes(implementationType);
+        var specks = SpeckyCaches.GetTypeSpeckAttributes(implementationType);
         foreach (var speck in specks)
         {
             var serviceType = speck.ServiceType ?? implementationType;
             try
             {
-                serviceCollection.AddSpeck(serviceType, implementationType, speck.ServiceLifetime, options, existing);
+                serviceCollection.AddSpeck(serviceType, implementationType, speck.ServiceLifetime, speck.Key, options, existing);
             }
             catch (TypeAccessException ex)
             {
@@ -169,7 +169,7 @@ public static class Extensions
                 var serviceType = speck.ServiceType ?? propertyInfo.PropertyType;
                 try
                 {
-                    serviceCollection.AddSpeck(serviceType, propertyInfo.PropertyType, speck.ServiceLifetime, options, existing);
+                    serviceCollection.AddSpeck(serviceType, propertyInfo.PropertyType, speck.ServiceLifetime, speck.Key, options, existing);
                 }
                 catch (TypeAccessException ex)
                 {
@@ -193,7 +193,7 @@ public static class Extensions
 
                 try
                 {
-                    serviceCollection.AddSpeck(serviceType, implementationType, serviceLifetime, options, existing);
+                    serviceCollection.AddSpeck(serviceType, implementationType, serviceLifetime, speck.Key, options, existing);
                 }
                 catch (TypeAccessException ex)
                 {
@@ -221,7 +221,7 @@ public static class Extensions
 
                 try
                 {
-                    serviceCollection.AddSpeck(serviceType, implementationType, serviceLifetime, options, existing);
+                    serviceCollection.AddSpeck(serviceType, implementationType, serviceLifetime, speck.Key, options, existing);
                 }
                 catch (TypeAccessException ex)
                 {
@@ -232,7 +232,7 @@ public static class Extensions
         }
     }
 
-    internal static void AddSpeck(this IServiceCollection serviceCollection, Type serviceType, Type implementationType, ServiceLifetime serviceLifetime, SpeckyOptions options, HashSet<ServiceTriple> existing)
+    internal static void AddSpeck(this IServiceCollection serviceCollection, Type serviceType, Type implementationType, ServiceLifetime serviceLifetime, object? serviceKey, SpeckyOptions options, HashSet<ServiceTriple> existing)
     {
         if (!implementationType.IsAssignableTo(serviceType))
         {
@@ -243,9 +243,31 @@ public static class Extensions
             throw new SpeckyException($"Specky cannot inject {implementationType.Name} because it is an interface.\n{serviceType.Name}.{implementationType.Name}");
         }
         if (options.ConfigurationAddedServiceTypes.Contains(serviceType)) return;
-        var triple = new ServiceTriple(serviceType, implementationType, serviceLifetime);
+        var triple = new ServiceTriple(serviceType, implementationType, serviceLifetime, serviceKey);
         if (existing.Contains(triple)) return; // fast duplicate rejection
         existing.Add(triple);
-        serviceCollection.Add(new ServiceDescriptor(serviceType, implementationType, serviceLifetime));
+
+        if (serviceKey is null)
+        {
+            serviceCollection.Add(new ServiceDescriptor(serviceType, implementationType, serviceLifetime));
+            return;
+        }
+
+        // Register keyed service
+        switch (serviceLifetime)
+        {
+            case ServiceLifetime.Singleton:
+                serviceCollection.Add(ServiceDescriptor.KeyedSingleton(serviceType, serviceKey, implementationType));
+                break;
+            case ServiceLifetime.Scoped:
+                serviceCollection.Add(ServiceDescriptor.KeyedScoped(serviceType, serviceKey, implementationType));
+                break;
+            case ServiceLifetime.Transient:
+                serviceCollection.Add(ServiceDescriptor.KeyedTransient(serviceType, serviceKey, implementationType));
+                break;
+            default:
+                serviceCollection.Add(new ServiceDescriptor(serviceType, implementationType, serviceLifetime));
+                break;
+        }
     }
 }
