@@ -163,20 +163,23 @@ public static class Extensions
         var specks = SpeckyCaches.GetTypeSpeckAttributes(implementationType);
         foreach (var speck in specks)
         {
-            var serviceType = speck.ServiceType ?? implementationType;
-            try
+            foreach (var serviceType in speck.ServiceTypes.Count == 0 ? [implementationType] : speck.ServiceTypes)
             {
-                serviceCollection.AddSpeck(serviceType, implementationType, speck.ServiceLifetime, speck.Key, options, existing);
-            }
-            catch (TypeAccessException ex)
-            {
-                throw new SpeckyException($"Specky could not inject service type {serviceType.Name} with implementation type {implementationType.Name} for an unknown reason.\n{speck.ServiceType?.Name ?? NullServiceTypeName}.{implementationType.Name}", ex);
-            }
-            if (speck.IsPostInit)
-            {
-                lock (_postInitLock)
+                try
                 {
-                    SpeckyInitRegistrations.Add(new PostInitRegistration(serviceType, speck.Key));
+                    serviceCollection.AddSpeck(serviceType, implementationType, speck.ServiceLifetime, speck.Key, options, existing);
+                }
+                catch (TypeAccessException ex)
+                {
+                    throw new SpeckyException($"Specky could not inject service type {serviceType.Name} with implementation type {implementationType.Name} for an unknown reason.\n{speck.ServiceType?.Name ?? NullServiceTypeName}.{implementationType.Name}", ex);
+                }
+
+                if (speck.IsPostInit)
+                {
+                    lock (_postInitLock)
+                    {
+                        SpeckyInitRegistrations.Add(new PostInitRegistration(serviceType, speck.Key));
+                    }
                 }
             }
         }
@@ -190,16 +193,19 @@ public static class Extensions
             var specks = SpeckyCaches.GetSpeckAttributes((MemberInfo)propertyInfo);
             foreach (var speck in specks)
             {
-                var serviceType = speck.ServiceType ?? propertyInfo.PropertyType;
-                try
+                foreach (var serviceType in speck.ServiceTypes.Count == 0 ? [propertyInfo.PropertyType] : speck.ServiceTypes)
                 {
-                    serviceCollection.AddSpeck(serviceType, propertyInfo.PropertyType, speck.ServiceLifetime, speck.Key, options, existing);
+                    try
+                    {
+                        serviceCollection.AddSpeck(serviceType, propertyInfo.PropertyType, speck.ServiceLifetime, speck.Key, options, existing);
+                    }
+                    catch (TypeAccessException ex)
+                    {
+                        throw new SpeckyException($"{speck.ServiceType?.Name ?? NullServiceTypeName}.{type.Name}.{propertyInfo.Name}.{propertyInfo.PropertyType.Name}", ex);
+                    }
+
+                    options.ConfigurationAddedServiceTypes.Add(serviceType);
                 }
-                catch (TypeAccessException ex)
-                {
-                    throw new SpeckyException($"{speck.ServiceType?.Name ?? NullServiceTypeName}.{type.Name}.{propertyInfo.Name}.{propertyInfo.PropertyType.Name}", ex);
-                }
-                options.ConfigurationAddedServiceTypes.Add(serviceType);
             }
         }
     }
@@ -216,12 +222,14 @@ public static class Extensions
                     throw new SpeckyException($"Specky configuration methods cannot return {typeof(void).Name}. The {nameof(methodInfo.ReturnType)} must be the {nameof(Type)} you want Specky to inject.\n{speck.ServiceType?.Name ?? typeof(void).Name}.{type.Name}.{methodInfo.Name}.{nameof(methodInfo.ReturnType.Name)}");
                 }
 
-                var serviceType = speck.ServiceType ?? methodInfo.ReturnType;
                 var implementationType = methodInfo.ReturnType;
                 var serviceLifetime = speck.ServiceLifetime;
 
-                serviceCollection.AddSpeck(serviceType, implementationType, serviceLifetime, speck.Key, options, existing);
-                options.ConfigurationAddedServiceTypes.Add(serviceType);
+                foreach (var serviceType in speck.ServiceTypes.Count == 0 ? [methodInfo.ReturnType] : speck.ServiceTypes)
+                {
+                    serviceCollection.AddSpeck(serviceType, implementationType, serviceLifetime, speck.Key, options, existing);
+                    options.ConfigurationAddedServiceTypes.Add(serviceType);
+                }
             }
         }
     }
@@ -233,19 +241,22 @@ public static class Extensions
             var specks = SpeckyCaches.GetSpeckAttributes((MemberInfo)fieldInfo);
             foreach (var speck in specks)
             {
-                var serviceType = speck.ServiceType ?? fieldInfo.FieldType;
                 var implementationType = fieldInfo.FieldType;
                 var serviceLifetime = speck.ServiceLifetime;
 
-                try
+                foreach (var serviceType in speck.ServiceTypes.Count == 0 ? [fieldInfo.FieldType] : speck.ServiceTypes)
                 {
-                    serviceCollection.AddSpeck(serviceType, implementationType, serviceLifetime, speck.Key, options, existing);
+                    try
+                    {
+                        serviceCollection.AddSpeck(serviceType, implementationType, serviceLifetime, speck.Key, options, existing);
+                    }
+                    catch (TypeAccessException ex)
+                    {
+                        throw new SpeckyException($"Specky could not inject service type {serviceType.Name} with implementation type {implementationType.Name} for an unknown reason.\n{speck.ServiceType?.Name ?? NullServiceTypeName}.{type.Name}.{fieldInfo.Name}.{nameof(fieldInfo.FieldType.Name)}", ex);
+                    }
+
+                    options.ConfigurationAddedServiceTypes.Add(serviceType);
                 }
-                catch (TypeAccessException ex)
-                {
-                    throw new SpeckyException($"Specky could not inject service type {serviceType.Name} with implementation type {implementationType.Name} for an unknown reason.\n{speck.ServiceType?.Name ?? NullServiceTypeName}.{type.Name}.{fieldInfo.Name}.{nameof(fieldInfo.FieldType.Name)}", ex);
-                }
-                options.ConfigurationAddedServiceTypes.Add(serviceType);
             }
         }
     }

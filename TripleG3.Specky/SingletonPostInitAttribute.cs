@@ -15,3 +15,16 @@ public class SingletonPostInitAttribute<T> : SpeckAttribute<T> where T : class
     /// <summary>Create a singleton registration for <typeparamref name="T"/> and mark for immediate post-init resolution.</summary>
     public SingletonPostInitAttribute() : base(ServiceLifetime.Singleton) { IsPostInit = true; }
 }
+
+/// <summary>
+/// Registers the decorated type for multiple service types with singleton lifetime and post-init resolution.
+/// </summary>
+public class MultiSingletonPostInitAttribute : SpeckAttribute
+{
+    /// <summary>Create a multi-service singleton registration and mark it for immediate post-init resolution.</summary>
+    public MultiSingletonPostInitAttribute(Type serviceType1, Type serviceType2, params Type[] additionalServiceTypes)
+        : base(ServiceLifetime.Singleton, BuildServiceTypes(serviceType1, serviceType2, additionalServiceTypes))
+    {
+        IsPostInit = true;
+    }
+}

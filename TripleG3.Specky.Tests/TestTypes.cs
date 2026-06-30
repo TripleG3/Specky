@@ -2,6 +2,11 @@ using Microsoft.Extensions.DependencyInjection;
 using TripleG3.Specky;
 
 namespace TripleG3.Specky.Tests;
+
+internal interface IFooBoth : IFooId, IFooTime
+{
+}
+
 internal class A_Foo : IFooId, IFooTime
 {
     public int Id { get; set; }
@@ -53,4 +58,25 @@ internal class Keyed_Id_Scoped : IFooId
 internal class Keyed_Id_Transient : IFooId
 {
     public int Id { get; set; }
+}
+
+[MultiScoped(typeof(IFooId), typeof(IFooTime))]
+internal class MultiScopedFoo : IFooBoth
+{
+    public int Id { get; set; }
+    public DateTime Time { get; set; }
+}
+
+[MultiSingleton(typeof(IFooId), typeof(IFooTime))]
+internal class MultiSingletonFoo : IFooBoth
+{
+    public int Id { get; set; }
+    public DateTime Time { get; set; }
+}
+
+[MultiTransient(typeof(IFooId), typeof(IFooTime))]
+internal class MultiTransientFoo : IFooBoth
+{
+    public int Id { get; set; }
+    public DateTime Time { get; set; }
 }

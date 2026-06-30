@@ -24,3 +24,11 @@ public class ScopedAttribute<T> : SpeckAttribute<T> where T : class
 public class ScopedKeyedAttribute<T>(object key) : SpeckKeyedAttribute<T>(key, ServiceLifetime.Scoped) where T : class
 {
 }
+
+/// <summary>
+/// Registers the decorated type for multiple service types with scoped lifetime.
+/// </summary>
+public class MultiScopedAttribute(Type serviceType1, Type serviceType2, params Type[] additionalServiceTypes)
+    : SpeckAttribute(ServiceLifetime.Scoped, BuildServiceTypes(serviceType1, serviceType2, additionalServiceTypes))
+{
+}

@@ -24,3 +24,11 @@ public class TransientAttribute<T> : SpeckAttribute<T> where T : class
 public class TransientKeyedAttribute<T>(object key) : SpeckKeyedAttribute<T>(key, ServiceLifetime.Transient) where T : class
 {
 }
+
+/// <summary>
+/// Registers the decorated type for multiple service types with transient lifetime.
+/// </summary>
+public class MultiTransientAttribute(Type serviceType1, Type serviceType2, params Type[] additionalServiceTypes)
+    : SpeckAttribute(ServiceLifetime.Transient, BuildServiceTypes(serviceType1, serviceType2, additionalServiceTypes))
+{
+}

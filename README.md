@@ -1,6 +1,6 @@
 # TripleG3.Specky
 
-Simple, attribute‑driven service registration for `Microsoft.Extensions.DependencyInjection` (.NET 6+).
+Simple, attribute‑driven service registration for `Microsoft.Extensions.DependencyInjection` on .NET 8+.
 
 Stop writing repetitive `AddScoped<,>()`, `AddSingleton<>()`, and boilerplate configuration glue. Annotate your types (or list them in lightweight configuration interfaces) and let Specky do the rest.
 
@@ -15,12 +15,12 @@ Stop writing repetitive `AddScoped<,>()`, `AddSingleton<>()`, and boilerplate co
 * Multi‑assembly scanning (`opts.AddAssemblies(...)`)
 * Configurations‑only mode (skip full assembly scan)
 * Duplicate registration prevention & internal caching for speed
-* Multi‑target builds: `net6.0; net8.0; net9.0`
+* Ships for `.NET 10`
 
 ---
 ## 🚀 Quick Start
 
-1. Install the package (placeholder id, adjust if different):
+1. Install the package:
 
     ```bash
     dotnet add package TripleG3.Specky
@@ -119,7 +119,7 @@ public interface IMethodConfig
     [Singleton] Startup BuildStartup(); // Registers Startup as singleton
 }
 ```
-`void` return methods are ignored (and will trigger an error if attributed).
+Attributed `void` return methods are invalid and will throw an error.
 
  
 ## 🎛 Options Filtering
@@ -205,8 +205,31 @@ using TripleG3.Specky;
 ### Roadmap
 
 * Open generic support
-* Multi‑service attribute (e.g., `[Scoped(typeof(IFoo), typeof(IBar))]`)
 * Optional source generator for AOT / zero reflection
+
+## 🆕 Multi‑Service Attributes
+
+You can now register one implementation for multiple service contracts with a single attribute:
+
+```csharp
+using TripleG3.Specky;
+
+[MultiScoped(typeof(IFoo), typeof(IBar))]
+public class FooBar : IFoo, IBar { }
+
+[MultiSingleton(typeof(IClock), typeof(ITimer))]
+public class ClockService : IClock, ITimer { }
+
+[MultiTransient(typeof(ICommand), typeof(IQueryHandler))]
+public class Handler : ICommand, IQueryHandler { }
+```
+
+For eager singleton activation after app build:
+
+```csharp
+[SingletonPostInit(typeof(IWarmupTask), typeof(ICachePrimer))]
+public class WarmupService : IWarmupTask, ICachePrimer { }
+```
 
  
 ## 🤝 Contributing

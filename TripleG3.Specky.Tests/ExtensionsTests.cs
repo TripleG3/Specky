@@ -10,7 +10,7 @@ public class ExtensionsTests
     public void AddInvalidConfigurationTest()
     {
         //Arrange
-        IServiceCollection serviceProvider = new MockServiceCollecton();
+        var serviceProvider = new MockServiceCollecton();
 
         //Act and Assert
         Assert.ThrowsException<SpeckyException>(() =>
@@ -64,13 +64,13 @@ public class ExtensionsTests
     public void AddSpecksScanningTest()
     {
         //Arrange
-        IServiceCollection serviceProvider = new MockServiceCollecton();
+        var serviceProvider = new MockServiceCollecton();
 
         //Act
         serviceProvider.AddSpecks<ExtensionsTests>();
 
         //Assert
-        Assert.AreEqual(7, serviceProvider.Count);
+        Assert.AreEqual(13, serviceProvider.Count);
         var a = serviceProvider.Any(x => x.ServiceType == typeof(IFooTime)
         && x.ImplementationType == typeof(B_Foo)
         && x.Lifetime == ServiceLifetime.Singleton);
@@ -105,6 +105,30 @@ public class ExtensionsTests
         && x.Lifetime == ServiceLifetime.Transient
         && x.ServiceKey?.Equals("IdKeyTransient") == true);
 
+        var multiScopedId = serviceProvider.Any(x => x.ServiceType == typeof(IFooId)
+        && x.ImplementationType == typeof(MultiScopedFoo)
+        && x.Lifetime == ServiceLifetime.Scoped);
+
+        var multiScopedTime = serviceProvider.Any(x => x.ServiceType == typeof(IFooTime)
+        && x.ImplementationType == typeof(MultiScopedFoo)
+        && x.Lifetime == ServiceLifetime.Scoped);
+
+        var multiSingletonId = serviceProvider.Any(x => x.ServiceType == typeof(IFooId)
+        && x.ImplementationType == typeof(MultiSingletonFoo)
+        && x.Lifetime == ServiceLifetime.Singleton);
+
+        var multiSingletonTime = serviceProvider.Any(x => x.ServiceType == typeof(IFooTime)
+        && x.ImplementationType == typeof(MultiSingletonFoo)
+        && x.Lifetime == ServiceLifetime.Singleton);
+
+        var multiTransientId = serviceProvider.Any(x => x.ServiceType == typeof(IFooId)
+        && x.ImplementationType == typeof(MultiTransientFoo)
+        && x.Lifetime == ServiceLifetime.Transient);
+
+        var multiTransientTime = serviceProvider.Any(x => x.ServiceType == typeof(IFooTime)
+        && x.ImplementationType == typeof(MultiTransientFoo)
+        && x.Lifetime == ServiceLifetime.Transient);
+
         Assert.IsTrue(a);
         Assert.IsTrue(b);
         Assert.IsTrue(c);
@@ -112,5 +136,11 @@ public class ExtensionsTests
         Assert.IsTrue(keyedSingleton);
         Assert.IsTrue(keyedScoped);
         Assert.IsTrue(keyedTransient);
+        Assert.IsTrue(multiScopedId);
+        Assert.IsTrue(multiScopedTime);
+        Assert.IsTrue(multiSingletonId);
+        Assert.IsTrue(multiSingletonTime);
+        Assert.IsTrue(multiTransientId);
+        Assert.IsTrue(multiTransientTime);
     }
 }
