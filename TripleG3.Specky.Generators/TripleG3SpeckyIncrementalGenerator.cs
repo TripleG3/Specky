@@ -34,6 +34,22 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor DuplicateRegistrationRule = new(
+        id: "SPKY004",
+        title: "Duplicate registration mapping",
+        messageFormat: "'{0}' is registered more than once for service contract '{1}' with lifetime '{2}'",
+        category: "TripleG3.Specky",
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor PostInitLifetimeRule = new(
+        id: "SPKY005",
+        title: "Post-init requires singleton lifetime",
+        messageFormat: "'{0}' uses a post-init registration pattern but is not configured as singleton",
+        category: "TripleG3.Specky",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var typeDeclarations = context.SyntaxProvider
@@ -66,6 +82,7 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
     private static ImmutableArray<RegistrationModel> BuildRegistrations(Compilation compilation, ImmutableArray<INamedTypeSymbol?> candidates, SourceProductionContext sourceProductionContext)
     {
         var registrations = ImmutableArray.CreateBuilder<RegistrationModel>();
+        var seenRegistrations = new HashSet<RegistrationKey>();
         var speckAttributeSymbol = compilation.GetTypeByMetadataName("TripleG3.Specky.SpeckAttribute");
         if (speckAttributeSymbol is null)
         {
@@ -102,6 +119,27 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
                 {
                     if (!TryValidateRegistration(candidate, serviceType, attribute, sourceProductionContext))
                     {
+                        continue;
+                    }
+
+                    var registrationKey = new RegistrationKey(
+                        candidate.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                        serviceType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                        lifetime.Value?.ToString() ?? "Singleton");
+
+                    if (!seenRegistrations.Add(registrationKey))
+                    {
+                        var duplicateLocation = attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? candidate.Locations.FirstOrDefault();
+                        if (duplicateLocation is not null)
+                        {
+                            sourceProductionContext.ReportDiagnostic(Diagnostic.Create(
+                                DuplicateRegistrationRule,
+                                duplicateLocation,
+                                candidate.ToDisplayString(),
+                                serviceType.ToDisplayString(),
+                                registrationKey.ServiceLifetime));
+                        }
+
                         continue;
                     }
 
@@ -164,6 +202,16 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
             return false;
         }
 
+        if ((attribute.AttributeClass?.Name.Contains("PostInit", StringComparison.Ordinal) ?? false)
+            && GetServiceLifetime(attribute) != "Singleton")
+        {
+            sourceProductionContext.ReportDiagnostic(Diagnostic.Create(
+                PostInitLifetimeRule,
+                location,
+                implementationType.ToDisplayString()));
+            return false;
+        }
+
         if (serviceType is INamedTypeSymbol namedServiceType && namedServiceType.IsGenericType && implementationType.IsGenericType)
         {
             var serviceArity = namedServiceType.IsUnboundGenericType || namedServiceType.IsDefinition ? namedServiceType.TypeArguments.Length : namedServiceType.Arity;
@@ -193,6 +241,17 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
         }
 
         return true;
+    }
+
+    private static string GetServiceLifetime(AttributeData attribute)
+    {
+        var lifetime = attribute.NamedArguments.FirstOrDefault(kvp => kvp.Key == "ServiceLifetime").Value;
+        if (lifetime.Value is null && attribute.ConstructorArguments.Length > 0)
+        {
+            lifetime = attribute.ConstructorArguments[0];
+        }
+
+        return lifetime.Value?.ToString() ?? "Singleton";
     }
 
     private static bool ImplementsContract(INamedTypeSymbol implementationType, ITypeSymbol serviceType)
@@ -362,6 +421,41 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
                 hash = (hash * 397) ^ ImplementationTypeName.GetHashCode();
                 hash = (hash * 397) ^ ServiceLifetime.GetHashCode();
                 hash = (hash * 397) ^ IsPostInit.GetHashCode();
+                return hash;
+            }
+        }
+    }
+
+    private sealed class RegistrationKey : IEquatable<RegistrationKey>
+    {
+        public RegistrationKey(string implementationType, string serviceType, string serviceLifetime)
+        {
+            ImplementationType = implementationType;
+            ServiceType = serviceType;
+            ServiceLifetime = serviceLifetime;
+        }
+
+        public string ImplementationType { get; }
+
+        public string ServiceType { get; }
+
+        public string ServiceLifetime { get; }
+
+        public bool Equals(RegistrationKey? other)
+            => other is not null
+               && ImplementationType == other.ImplementationType
+               && ServiceType == other.ServiceType
+               && ServiceLifetime == other.ServiceLifetime;
+
+        public override bool Equals(object? obj) => Equals(obj as RegistrationKey);
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hash = ImplementationType.GetHashCode();
+                hash = (hash * 397) ^ ServiceType.GetHashCode();
+                hash = (hash * 397) ^ ServiceLifetime.GetHashCode();
                 return hash;
             }
         }

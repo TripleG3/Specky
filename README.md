@@ -31,6 +31,7 @@ Need runtime scanning? Specky still supports it without acting personally offend
  - post-init singletons
  - first-pass open generic registrations
  - configuration-interface patterns
+ - compile-time diagnostics for invalid registration patterns
 
 In short: **less ceremony, more intent, fewer regret-scrolls in `Program.cs`**.
 
@@ -192,6 +193,7 @@ No registration wall. No repetitive glue. No tiny sadness in the startup pipelin
 - generic arity must match
 - implementation must actually satisfy the open generic contract
 - generator diagnostics help catch invalid mappings early
+- duplicate registration patterns can now be flagged during generation
 
  ---
 
@@ -324,13 +326,29 @@ Your open generic service and implementation definitions do not line up.
 
 This usually means arity mismatch or a contract the implementation does not actually satisfy.
 
+### Duplicate mapping
+
+```text
+registered more than once
+```
+
+The generator can warn when the same implementation/service/lifetime mapping is emitted multiple times.
+
+### Invalid post-init lifetime
+
+```text
+post-init registration pattern but is not configured as singleton
+```
+
+Post-init registrations are intended for singleton activation scenarios.
+
  ---
 
  ## 📌 Limits
 
 - open generic support is intentionally conservative
 - source generation is first-pass, but already useful and preferred
-- compile-time diagnostics exist, but richer analyzer coverage can still improve
+- compile-time diagnostics now cover core invalid registration patterns, though analyzer coverage can still grow further
 - runtime scanning still exists because sometimes reality is rude
 
  ---

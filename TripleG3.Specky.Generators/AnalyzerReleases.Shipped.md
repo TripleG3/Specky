@@ -6,3 +6,5 @@ Rule ID | Category | Severity | Notes
 SPKY001 | TripleG3.Specky | Error | Service contract mismatch
 SPKY002 | TripleG3.Specky | Error | Open generic arity mismatch
 SPKY003 | TripleG3.Specky | Error | Interface cannot be implementation
+SPKY004 | TripleG3.Specky | Warning | Duplicate registration mapping
+SPKY005 | TripleG3.Specky | Error | Post-init requires singleton lifetime
