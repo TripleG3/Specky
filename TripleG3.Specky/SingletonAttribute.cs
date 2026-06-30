@@ -3,7 +3,14 @@ using Microsoft.Extensions.DependencyInjection;
 namespace TripleG3.Specky;
 
 /// <summary>Registers the decorated type as a singleton service of itself.</summary>
-public class SingletonAttribute : SpeckAttribute { }
+public class SingletonAttribute : SpeckAttribute
+{
+	/// <summary>Create a singleton registration of the decorated type.</summary>
+	public SingletonAttribute() { }
+
+	/// <summary>Create a singleton registration for the specified service type.</summary>
+	public SingletonAttribute(Type serviceType) : base(ServiceLifetime.Singleton, serviceType) { }
+}
 
 /// <summary>Registers the decorated type as the implementation of <typeparamref name="T"/> with singleton lifetime.</summary>
 public class SingletonAttribute<T> : SpeckAttribute<T> where T : class { }

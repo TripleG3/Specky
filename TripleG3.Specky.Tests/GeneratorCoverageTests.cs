@@ -13,6 +13,7 @@ public class GeneratorCoverageTests
 
         services.AddTripleG3Specky();
 
-        Assert.IsNotNull(services);
+        Assert.IsTrue(services.Any(descriptor => descriptor.ServiceType == typeof(IFactoryConsole)));
+        Assert.IsTrue(services.Any(descriptor => descriptor.ServiceType == typeof(IDescriptorRegisteredService)));
     }
 }

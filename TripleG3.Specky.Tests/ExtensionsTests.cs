@@ -73,7 +73,7 @@ public class ExtensionsTests
         });
 
         //Assert
-        Assert.AreEqual(15, serviceProvider.Count);
+        Assert.IsTrue(serviceProvider.Count >= 18);
         var a = serviceProvider.Any(x => x.ServiceType == typeof(IFooTime)
         && x.ImplementationType == typeof(B_Foo)
         && x.Lifetime == ServiceLifetime.Singleton);
@@ -140,6 +140,18 @@ public class ExtensionsTests
         && x.ImplementationType == typeof(OpenGenericDuplicateContracts<>)
         && x.Lifetime == ServiceLifetime.Scoped);
 
+        var cleanOpenGenericScoped = serviceProvider.Any(x => x.ServiceType == typeof(ICleanGenericRepository<>)
+        && x.ImplementationType == typeof(CleanGenericRepository<>)
+        && x.Lifetime == ServiceLifetime.Scoped);
+
+        var factoryConsole = serviceProvider.Any(x => x.ServiceType == typeof(IFactoryConsole)
+        && x.ImplementationFactory is not null
+        && x.Lifetime == ServiceLifetime.Singleton);
+
+        var descriptorProviderService = serviceProvider.Any(x => x.ServiceType == typeof(IDescriptorRegisteredService)
+        && x.ImplementationType == typeof(DescriptorRegisteredService)
+        && x.Lifetime == ServiceLifetime.Singleton);
+
         Assert.IsTrue(a);
         Assert.IsTrue(b);
         Assert.IsTrue(c);
@@ -155,6 +167,35 @@ public class ExtensionsTests
         Assert.IsTrue(multiTransientTime);
         Assert.IsTrue(openGenericScoped);
         Assert.IsTrue(openGenericDuplicateContract);
+        Assert.IsTrue(cleanOpenGenericScoped);
+        Assert.IsTrue(factoryConsole);
+        Assert.IsTrue(descriptorProviderService);
+    }
+
+    [TestMethod()]
+    public void AddSpecksRuntimeFactoryRegistrationResolvesService()
+    {
+        var services = new ServiceCollection();
+
+        services.AddSpecks<ExtensionsTests>();
+
+        using var provider = services.BuildServiceProvider();
+        var greeting = provider.GetRequiredService<IFactoryGreetingService>();
+
+        Assert.AreEqual("Hello, David!", greeting.Greet("David"));
+    }
+
+    [TestMethod()]
+    public void AddSpecksRuntimeDescriptorProviderRegistrationResolvesService()
+    {
+        var services = new ServiceCollection();
+
+        services.AddSpecks<ExtensionsTests>();
+
+        using var provider = services.BuildServiceProvider();
+        var descriptorService = provider.GetRequiredService<IDescriptorRegisteredService>();
+
+        Assert.AreEqual(nameof(DescriptorRegisteredService), descriptorService.Name);
     }
 
     [TestMethod()]

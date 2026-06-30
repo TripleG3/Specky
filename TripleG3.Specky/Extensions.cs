@@ -101,6 +101,8 @@ public static class Extensions
         foreach (var implementationType in speckTypes)
         {
             serviceCollection.ScanTypeAndInject(implementationType, localOptions, existing);
+            serviceCollection.ScanFactoryMethodsAndInject(implementationType, existing);
+            serviceCollection.ScanDescriptorProviderAndInject(implementationType);
         }
         return serviceCollection;
     }
@@ -259,6 +261,92 @@ public static class Extensions
                 }
             }
         }
+    }
+
+    internal static void ScanFactoryMethodsAndInject(this IServiceCollection serviceCollection, Type type, HashSet<ServiceTriple> existing)
+    {
+        foreach (var methodInfo in type.GetMethods(ConfigurationMemberBindingFlags))
+        {
+            var factoryAttributes = methodInfo.GetCustomAttributes<SpeckyFactoryAttribute>(false);
+            foreach (var factoryAttribute in factoryAttributes)
+            {
+                serviceCollection.AddFactorySpeck(factoryAttribute.ServiceType, methodInfo, factoryAttribute.ServiceLifetime, existing);
+            }
+        }
+    }
+
+    internal static void ScanDescriptorProviderAndInject(this IServiceCollection serviceCollection, Type type)
+    {
+        if (!type.IsDefined(typeof(SpeckyDescriptorProviderAttribute), false))
+        {
+            return;
+        }
+
+        if (type.IsInterface || type.IsAbstract)
+        {
+            throw new SpeckyException($"Specky descriptor provider {type.Name} must be a concrete type.\n{nameof(SpeckyDescriptorProviderAttribute)}.{type.Name}");
+        }
+
+        if (!typeof(ISpeckyDescriptorProvider).IsAssignableFrom(type))
+        {
+            throw new SpeckyException($"Specky descriptor provider {type.Name} must implement {nameof(ISpeckyDescriptorProvider)}.\n{nameof(SpeckyDescriptorProviderAttribute)}.{type.Name}");
+        }
+
+        if (type.GetConstructor(Type.EmptyTypes) is null)
+        {
+            throw new SpeckyException($"Specky descriptor provider {type.Name} must have a public parameterless constructor.\n{nameof(SpeckyDescriptorProviderAttribute)}.{type.Name}");
+        }
+
+        var provider = (ISpeckyDescriptorProvider)Activator.CreateInstance(type)!;
+        foreach (var descriptor in provider.GetDescriptors())
+        {
+            serviceCollection.Add(descriptor);
+        }
+    }
+
+    internal static void AddFactorySpeck(this IServiceCollection serviceCollection, Type serviceType, MethodInfo methodInfo, ServiceLifetime serviceLifetime, HashSet<ServiceTriple> existing)
+    {
+        if (!methodInfo.IsStatic)
+        {
+            throw new SpeckyException($"Specky factory method {methodInfo.DeclaringType?.Name}.{methodInfo.Name} must be static.\n{serviceType.Name}.{methodInfo.Name}");
+        }
+
+        if (methodInfo.ReturnType == typeof(void))
+        {
+            throw new SpeckyException($"Specky factory method {methodInfo.DeclaringType?.Name}.{methodInfo.Name} cannot return {typeof(void).Name}.\n{serviceType.Name}.{methodInfo.Name}");
+        }
+
+        if (serviceType.IsGenericTypeDefinition || methodInfo.ReturnType.IsGenericTypeDefinition)
+        {
+            throw new SpeckyException($"Specky factory method {methodInfo.DeclaringType?.Name}.{methodInfo.Name} cannot register open generic service types.\n{serviceType.Name}.{methodInfo.Name}");
+        }
+
+        if (!methodInfo.ReturnType.IsAssignableTo(serviceType))
+        {
+            throw new SpeckyException($"Specky factory method {methodInfo.DeclaringType?.Name}.{methodInfo.Name} returns {methodInfo.ReturnType.Name}, which cannot be assigned to {serviceType.Name}.\n{serviceType.Name}.{methodInfo.Name}");
+        }
+
+        var parameters = methodInfo.GetParameters();
+        if (parameters.Length > 1 || (parameters.Length == 1 && parameters[0].ParameterType != typeof(IServiceProvider)))
+        {
+            throw new SpeckyException($"Specky factory method {methodInfo.DeclaringType?.Name}.{methodInfo.Name} must accept no parameters or a single {nameof(IServiceProvider)} parameter.\n{serviceType.Name}.{methodInfo.Name}");
+        }
+
+        var triple = new ServiceTriple(serviceType, methodInfo.ReturnType, serviceLifetime, null);
+        if (!existing.Add(triple)) return;
+
+        serviceCollection.Add(ServiceDescriptor.Describe(
+            serviceType,
+            provider => InvokeFactory(methodInfo, provider),
+            serviceLifetime));
+    }
+
+    private static object InvokeFactory(MethodInfo methodInfo, IServiceProvider serviceProvider)
+    {
+        var parameters = methodInfo.GetParameters();
+        return parameters.Length == 0
+            ? methodInfo.Invoke(null, null)!
+            : methodInfo.Invoke(null, [serviceProvider])!;
     }
 
     internal static void AddSpeck(this IServiceCollection serviceCollection, Type serviceType, Type implementationType, ServiceLifetime serviceLifetime, object? serviceKey, SpeckyOptions options, HashSet<ServiceTriple> existing)

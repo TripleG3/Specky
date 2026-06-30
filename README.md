@@ -29,7 +29,9 @@ Need runtime scanning? Specky still supports it without acting personally offend
  - multi-service registrations
  - keyed registrations
  - post-init singletons
- - first-pass open generic registrations
+ - open generic registrations
+ - factory method registrations
+ - descriptor-provider registrations
  - configuration-interface patterns
  - compile-time diagnostics for invalid registration patterns
 
@@ -86,6 +88,8 @@ No registration wall. No repetitive glue. No tiny sadness in the startup pipelin
  - [Self](#-self)
  - [Multi](#-multi)
  - [Keyed](#-keyed)
+ - [Factory](#-factory)
+ - [Descriptor](#-descriptor)
  - [PostInit](#-postinit)
  - [Generic](#-generic)
  - [Config](#-config)
@@ -162,6 +166,42 @@ No registration wall. No repetitive glue. No tiny sadness in the startup pipelin
 
  ---
 
+ ## 🏗 Factory
+
+ ```csharp
+ [SingletonFactory<IConsole>]
+ public static IConsole CreateConsole()
+     => new DefaultConsole { IsEnabled = true };
+ ```
+
+ ```csharp
+ [ScopedFactory<IGreeter>]
+ public static IGreeter CreateGreeter(IServiceProvider services)
+     => new Greeter(services.GetRequiredService<IConsole>());
+ ```
+
+ **Custom construction.**
+
+ ---
+
+ ## 📦 Descriptor
+
+ ```csharp
+ [SpeckyDescriptorProvider]
+ public sealed class ConsoleDescriptors : ISpeckyDescriptorProvider
+ {
+     public IEnumerable<ServiceDescriptor> GetDescriptors()
+     {
+         yield return ServiceDescriptor.Singleton<IConsole>(
+             new DefaultConsole { IsEnabled = true });
+     }
+ }
+ ```
+
+ **Full control.**
+
+ ---
+
  ## ⚡ PostInit
 
  ```csharp
@@ -181,15 +221,14 @@ No registration wall. No repetitive glue. No tiny sadness in the startup pipelin
  ## 🧠 Generic
 
  ```csharp
- [MultiServiceSpeck(ServiceLifetime.Scoped, typeof(IRepository<>), typeof(IRepository<>))]
+ [Scoped(typeof(IRepository<>))]
  public sealed class Repository<T> : IRepository<T>;
  ```
 
-**Open generics, first-pass style.**
+**Open generics. Cleaner now.**
 
  Notes:
 
-- conservative by design
 - generic arity must match
 - implementation must actually satisfy the open generic contract
 - generator diagnostics help catch invalid mappings early
@@ -342,20 +381,44 @@ post-init registration pattern but is not configured as singleton
 
 Post-init registrations are intended for singleton activation scenarios.
 
+### Factory signature
+
+```text
+Factory method signature is unsupported
+```
+
+Factory methods must be static and accept either no parameters or a single `IServiceProvider` parameter.
+
+### Factory return
+
+```text
+Factory return type mismatch
+```
+
+Factory return values must satisfy the service contract they are registered for.
+
+### Descriptor provider
+
+```text
+Descriptor provider contract mismatch
+```
+
+Descriptor providers must implement `ISpeckyDescriptorProvider` and expose a public parameterless constructor.
+
  ---
 
- ## 📌 Limits
+ ## 📌 Edges
 
-- open generic support is intentionally conservative
-- source generation is first-pass, but already useful and preferred
-- compile-time diagnostics now cover core invalid registration patterns, though analyzer coverage can still grow further
+- open generic support is conservative by design
+- factory methods intentionally support simple static signatures only
+- descriptor providers are the escape hatch for advanced `ServiceDescriptor` scenarios
+- compile-time diagnostics cover core invalid registration patterns, though analyzer coverage can still grow further
 - runtime scanning still exists because sometimes reality is rude
 
  ---
 
  ## 🛣 Roadmap
 
- - more polished open generic ergonomics
  - optional deeper AOT-focused workflow improvements
 
  ---

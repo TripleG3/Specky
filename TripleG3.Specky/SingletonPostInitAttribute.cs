@@ -7,6 +7,9 @@ public class SingletonPostInitAttribute : SpeckAttribute
 {
     /// <summary>Create a singleton registration and mark it for immediate post-init resolution.</summary>
     public SingletonPostInitAttribute() : base(ServiceLifetime.Singleton) { IsPostInit = true; }
+
+    /// <summary>Create a singleton registration for the specified service type and mark it for immediate post-init resolution.</summary>
+    public SingletonPostInitAttribute(Type serviceType) : base(ServiceLifetime.Singleton, serviceType) { IsPostInit = true; }
 }
 
 /// <summary>Registers the decorated type as the implementation of <typeparamref name="T"/> with singleton lifetime and immediate post-init resolution.</summary>

@@ -50,6 +50,54 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    private static readonly DiagnosticDescriptor FactoryVoidReturnRule = new(
+        id: "SPKY006",
+        title: "Factory method cannot return void",
+        messageFormat: "Factory method '{0}' cannot return void",
+        category: "TripleG3.Specky",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor FactoryReturnMismatchRule = new(
+        id: "SPKY007",
+        title: "Factory return type mismatch",
+        messageFormat: "Factory method '{0}' returns '{1}', which does not satisfy service contract '{2}'",
+        category: "TripleG3.Specky",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor FactorySignatureRule = new(
+        id: "SPKY008",
+        title: "Factory method signature is unsupported",
+        messageFormat: "Factory method '{0}' must be static and accept no parameters or a single IServiceProvider parameter",
+        category: "TripleG3.Specky",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor DescriptorProviderContractRule = new(
+        id: "SPKY009",
+        title: "Descriptor provider contract mismatch",
+        messageFormat: "Descriptor provider '{0}' must implement ISpeckyDescriptorProvider",
+        category: "TripleG3.Specky",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor DescriptorProviderConcreteRule = new(
+        id: "SPKY010",
+        title: "Descriptor provider must be concrete",
+        messageFormat: "Descriptor provider '{0}' must be a concrete class",
+        category: "TripleG3.Specky",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor DescriptorProviderConstructorRule = new(
+        id: "SPKY011",
+        title: "Descriptor provider constructor missing",
+        messageFormat: "Descriptor provider '{0}' must have a public parameterless constructor",
+        category: "TripleG3.Specky",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var typeDeclarations = context.SyntaxProvider
@@ -58,13 +106,21 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
                 static (syntaxContext, _) => GetRegistrationCandidate(syntaxContext))
             .Where(static candidate => candidate is not null);
 
-        var compilationAndCandidates = context.CompilationProvider.Combine(typeDeclarations.Collect());
+        var methodDeclarations = context.SyntaxProvider
+            .CreateSyntaxProvider(
+                static (node, _) => node is MethodDeclarationSyntax { AttributeLists.Count: > 0 },
+                static (syntaxContext, _) => GetFactoryCandidate(syntaxContext))
+            .Where(static candidate => candidate is not null);
+
+        var compilationAndCandidates = context.CompilationProvider.Combine(typeDeclarations.Collect()).Combine(methodDeclarations.Collect());
 
         context.RegisterSourceOutput(compilationAndCandidates, static (sourceProductionContext, pair) =>
         {
-            var (compilation, candidates) = pair;
+            var ((compilation, candidates), factoryMethods) = pair;
             var registrations = BuildRegistrations(compilation, candidates!, sourceProductionContext);
-            var source = GenerateExtensionsSource(registrations);
+            var factoryRegistrations = BuildFactoryRegistrations(compilation, factoryMethods!, sourceProductionContext);
+            var descriptorProviders = BuildDescriptorProviders(compilation, candidates!, sourceProductionContext);
+            var source = GenerateExtensionsSource(registrations, factoryRegistrations, descriptorProviders);
             sourceProductionContext.AddSource("TripleG3.Specky.Generated.g.cs", SourceText.From(source, Encoding.UTF8));
         });
     }
@@ -77,6 +133,16 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
         }
 
         return context.SemanticModel.GetDeclaredSymbol(classDeclaration) as INamedTypeSymbol;
+    }
+
+    private static IMethodSymbol? GetFactoryCandidate(GeneratorSyntaxContext context)
+    {
+        if (context.Node is not MethodDeclarationSyntax methodDeclaration)
+        {
+            return null;
+        }
+
+        return context.SemanticModel.GetDeclaredSymbol(methodDeclaration) as IMethodSymbol;
     }
 
     private static ImmutableArray<RegistrationModel> BuildRegistrations(Compilation compilation, ImmutableArray<INamedTypeSymbol?> candidates, SourceProductionContext sourceProductionContext)
@@ -105,11 +171,7 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
                     continue;
                 }
 
-                var lifetime = attribute.NamedArguments.FirstOrDefault(kvp => kvp.Key == "ServiceLifetime").Value;
-                if (lifetime.Value is null && attribute.ConstructorArguments.Length > 0)
-                {
-                    lifetime = attribute.ConstructorArguments[0];
-                }
+                var lifetime = GetServiceLifetime(attribute);
 
                 var serviceTypes = GetServiceTypes(attribute, candidate);
                 var isPostInit = attribute.NamedArguments.Any(kvp => kvp.Key == "IsPostInit" && kvp.Value.Value is true)
@@ -125,7 +187,7 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
                     var registrationKey = new RegistrationKey(
                         candidate.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                         serviceType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                        lifetime.Value?.ToString() ?? "Singleton");
+                        lifetime);
 
                     if (!seenRegistrations.Add(registrationKey))
                     {
@@ -146,13 +208,129 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
                     registrations.Add(new RegistrationModel(
                         ToTypeExpression(serviceType),
                         ToTypeExpression(candidate),
-                        lifetime.Value?.ToString() ?? "Singleton",
+                        lifetime,
                         isPostInit));
                 }
             }
         }
 
         return registrations.ToImmutable();
+    }
+
+    private static ImmutableArray<FactoryRegistrationModel> BuildFactoryRegistrations(Compilation compilation, ImmutableArray<IMethodSymbol?> candidates, SourceProductionContext sourceProductionContext)
+    {
+        var registrations = ImmutableArray.CreateBuilder<FactoryRegistrationModel>();
+        var factoryAttributeSymbol = compilation.GetTypeByMetadataName("TripleG3.Specky.SpeckyFactoryAttribute");
+        if (factoryAttributeSymbol is null)
+        {
+            return registrations.ToImmutable();
+        }
+
+        var seenRegistrations = new HashSet<RegistrationKey>();
+
+        foreach (var candidate in candidates)
+        {
+            if (candidate is null)
+            {
+                continue;
+            }
+
+            foreach (var attribute in candidate.GetAttributes())
+            {
+                if (!InheritsFrom(attribute.AttributeClass, factoryAttributeSymbol))
+                {
+                    continue;
+                }
+
+                var serviceType = GetFactoryServiceType(attribute);
+                if (serviceType is null || !TryValidateFactory(candidate, serviceType, attribute, sourceProductionContext))
+                {
+                    continue;
+                }
+
+                var lifetime = GetFactoryLifetime(attribute);
+                var registrationKey = new RegistrationKey(
+                    candidate.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                    serviceType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                    lifetime);
+
+                if (!seenRegistrations.Add(registrationKey))
+                {
+                    continue;
+                }
+
+                registrations.Add(new FactoryRegistrationModel(
+                    ToTypeExpression(serviceType),
+                    candidate.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                    candidate.Name,
+                    lifetime,
+                    candidate.Parameters.Length == 1));
+            }
+        }
+
+        return registrations.ToImmutable();
+    }
+
+    private static ImmutableArray<string> BuildDescriptorProviders(Compilation compilation, ImmutableArray<INamedTypeSymbol?> candidates, SourceProductionContext sourceProductionContext)
+    {
+        var descriptorProviders = ImmutableArray.CreateBuilder<string>();
+        var descriptorProviderAttributeSymbol = compilation.GetTypeByMetadataName("TripleG3.Specky.SpeckyDescriptorProviderAttribute");
+        var descriptorProviderInterfaceSymbol = compilation.GetTypeByMetadataName("TripleG3.Specky.ISpeckyDescriptorProvider");
+        if (descriptorProviderAttributeSymbol is null || descriptorProviderInterfaceSymbol is null)
+        {
+            return descriptorProviders.ToImmutable();
+        }
+
+        foreach (var candidate in candidates)
+        {
+            if (candidate is null)
+            {
+                continue;
+            }
+
+            var hasProviderAttribute = candidate.GetAttributes().Any(attribute => SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, descriptorProviderAttributeSymbol));
+            if (!hasProviderAttribute)
+            {
+                continue;
+            }
+
+            var location = candidate.Locations.FirstOrDefault();
+            if (location is null)
+            {
+                continue;
+            }
+
+            if (candidate.IsAbstract || candidate.TypeKind != TypeKind.Class)
+            {
+                sourceProductionContext.ReportDiagnostic(Diagnostic.Create(
+                    DescriptorProviderConcreteRule,
+                    location,
+                    candidate.ToDisplayString()));
+                continue;
+            }
+
+            if (!candidate.AllInterfaces.Any(interfaceType => SymbolEqualityComparer.Default.Equals(interfaceType, descriptorProviderInterfaceSymbol)))
+            {
+                sourceProductionContext.ReportDiagnostic(Diagnostic.Create(
+                    DescriptorProviderContractRule,
+                    location,
+                    candidate.ToDisplayString()));
+                continue;
+            }
+
+            if (!candidate.Constructors.Any(constructor => constructor.Parameters.Length == 0 && constructor.DeclaredAccessibility == Accessibility.Public))
+            {
+                sourceProductionContext.ReportDiagnostic(Diagnostic.Create(
+                    DescriptorProviderConstructorRule,
+                    location,
+                    candidate.ToDisplayString()));
+                continue;
+            }
+
+            descriptorProviders.Add(candidate.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+        }
+
+        return descriptorProviders.ToImmutable();
     }
 
     private static ImmutableArray<ITypeSymbol> GetServiceTypes(AttributeData attribute, INamedTypeSymbol implementationType)
@@ -179,10 +357,123 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
 
         if (builder.Count == 0)
         {
-            builder.Add(implementationType);
+            if (attribute.AttributeClass is { TypeArguments.Length: > 0 })
+            {
+                builder.Add(attribute.AttributeClass.TypeArguments[0]);
+            }
+            else
+            {
+                builder.Add(implementationType);
+            }
         }
 
         return builder.ToImmutable();
+    }
+
+    private static ITypeSymbol? GetFactoryServiceType(AttributeData attribute)
+    {
+        foreach (var constructorArgument in attribute.ConstructorArguments)
+        {
+            if (constructorArgument.Kind == TypedConstantKind.Type && constructorArgument.Value is ITypeSymbol typeSymbol)
+            {
+                return typeSymbol;
+            }
+        }
+
+        return attribute.AttributeClass is { TypeArguments.Length: > 0 }
+            ? attribute.AttributeClass.TypeArguments[0]
+            : null;
+    }
+
+    private static string GetFactoryLifetime(AttributeData attribute)
+    {
+        if (attribute.ConstructorArguments.Length > 0)
+        {
+            return GetLifetimeName(attribute.ConstructorArguments[0]);
+        }
+
+        var attributeName = attribute.AttributeClass?.Name ?? string.Empty;
+        if (attributeName.Contains("Scoped", StringComparison.Ordinal))
+        {
+            return "Scoped";
+        }
+
+        if (attributeName.Contains("Transient", StringComparison.Ordinal))
+        {
+            return "Transient";
+        }
+
+        return "Singleton";
+    }
+
+    private static bool TryValidateFactory(IMethodSymbol method, ITypeSymbol serviceType, AttributeData attribute, SourceProductionContext sourceProductionContext)
+    {
+        var location = attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? method.Locations.FirstOrDefault();
+        if (location is null)
+        {
+            return false;
+        }
+
+        var methodName = method.ToDisplayString(SymbolDisplayFormat.CSharpErrorMessageFormat);
+
+        if (!method.IsStatic || method.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
+        {
+            sourceProductionContext.ReportDiagnostic(Diagnostic.Create(FactorySignatureRule, location, methodName));
+            return false;
+        }
+
+        if (method.IsGenericMethod || method.Parameters.Length > 1)
+        {
+            sourceProductionContext.ReportDiagnostic(Diagnostic.Create(FactorySignatureRule, location, methodName));
+            return false;
+        }
+
+        if (method.Parameters.Length == 1 && method.Parameters[0].Type.ToDisplayString() != "System.IServiceProvider")
+        {
+            sourceProductionContext.ReportDiagnostic(Diagnostic.Create(FactorySignatureRule, location, methodName));
+            return false;
+        }
+
+        if (method.ReturnsVoid)
+        {
+            sourceProductionContext.ReportDiagnostic(Diagnostic.Create(FactoryVoidReturnRule, location, methodName));
+            return false;
+        }
+
+        if (serviceType is INamedTypeSymbol namedServiceType && namedServiceType.IsGenericType && (namedServiceType.IsUnboundGenericType || namedServiceType.IsDefinition))
+        {
+            sourceProductionContext.ReportDiagnostic(Diagnostic.Create(FactorySignatureRule, location, methodName));
+            return false;
+        }
+
+        if (!FactoryReturnSatisfiesService(method.ReturnType, serviceType))
+        {
+            sourceProductionContext.ReportDiagnostic(Diagnostic.Create(
+                FactoryReturnMismatchRule,
+                location,
+                methodName,
+                method.ReturnType.ToDisplayString(),
+                serviceType.ToDisplayString()));
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool FactoryReturnSatisfiesService(ITypeSymbol returnType, ITypeSymbol serviceType)
+    {
+        if (SymbolEqualityComparer.Default.Equals(returnType, serviceType))
+        {
+            return true;
+        }
+
+        if (returnType is INamedTypeSymbol namedReturnType)
+        {
+            return namedReturnType.AllInterfaces.Any(interfaceType => SymbolEqualityComparer.Default.Equals(interfaceType, serviceType))
+                   || InheritsConcrete(namedReturnType, serviceType);
+        }
+
+        return false;
     }
 
     private static bool TryValidateRegistration(INamedTypeSymbol implementationType, ITypeSymbol serviceType, AttributeData attribute, SourceProductionContext sourceProductionContext)
@@ -251,7 +542,20 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
             lifetime = attribute.ConstructorArguments[0];
         }
 
-        return lifetime.Value?.ToString() ?? "Singleton";
+        return GetLifetimeName(lifetime);
+    }
+
+    private static string GetLifetimeName(TypedConstant lifetime)
+    {
+        return lifetime.Value switch
+        {
+            1 => "Scoped",
+            2 => "Transient",
+            "Scoped" => "Scoped",
+            "Transient" => "Transient",
+            "Singleton" => "Singleton",
+            _ => "Singleton"
+        };
     }
 
     private static bool ImplementsContract(INamedTypeSymbol implementationType, ITypeSymbol serviceType)
@@ -265,10 +569,11 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
         {
             if (namedServiceType.IsUnboundGenericType || namedServiceType.IsDefinition)
             {
+                var serviceDefinition = namedServiceType.ConstructedFrom;
                 return implementationType.AllInterfaces.Any(i =>
                            i.IsGenericType &&
-                           SymbolEqualityComparer.Default.Equals(i.ConstructedFrom, namedServiceType))
-                       || InheritsOpenGeneric(implementationType, namedServiceType);
+                           SymbolEqualityComparer.Default.Equals(i.ConstructedFrom, serviceDefinition))
+                       || InheritsOpenGeneric(implementationType, serviceDefinition);
             }
         }
 
@@ -306,14 +611,17 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
     {
         if (symbol is INamedTypeSymbol namedType && namedType.IsGenericType)
         {
-            var genericDefinitionName = namedType.ConstructedFrom.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            var genericArgumentStart = genericDefinitionName.IndexOf('<');
-            if (genericArgumentStart >= 0)
+            if (namedType.IsUnboundGenericType || namedType.TypeArguments.Any(static typeArgument => typeArgument.TypeKind == TypeKind.TypeParameter))
             {
-                genericDefinitionName = genericDefinitionName.Substring(0, genericArgumentStart);
-            }
+                var genericDefinitionName = namedType.ConstructedFrom.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                var genericArgumentStart = genericDefinitionName.IndexOf('<');
+                if (genericArgumentStart >= 0)
+                {
+                    genericDefinitionName = genericDefinitionName.Substring(0, genericArgumentStart);
+                }
 
-            return $"typeof({genericDefinitionName})";
+                return $"typeof({genericDefinitionName}<{new string(',', namedType.Arity - 1)}>)";
+            }
         }
 
         return $"typeof({symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)})";
@@ -332,9 +640,10 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
         return false;
     }
 
-    private static string GenerateExtensionsSource(ImmutableArray<RegistrationModel> registrations)
+    private static string GenerateExtensionsSource(ImmutableArray<RegistrationModel> registrations, ImmutableArray<FactoryRegistrationModel> factoryRegistrations, ImmutableArray<string> descriptorProviderTypes)
     {
         var builder = new StringBuilder();
+        builder.AppendLine("using System;");
         builder.AppendLine("using Microsoft.Extensions.DependencyInjection;");
         builder.AppendLine();
         builder.AppendLine("namespace TripleG3.Specky;");
@@ -367,6 +676,37 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
                 .Append(", ")
                 .Append(registration.ImplementationTypeName)
                 .AppendLine(");");
+        }
+
+        foreach (var registration in factoryRegistrations.Distinct())
+        {
+            var methodName = registration.ServiceLifetime switch
+            {
+                "Scoped" => "AddScoped",
+                "Transient" => "AddTransient",
+                _ => "AddSingleton"
+            };
+
+            builder.Append("        services.")
+                .Append(methodName)
+                .Append("(")
+                .Append(registration.ServiceTypeName)
+                .Append(", static services => ")
+                .Append(registration.FactoryTypeName)
+                .Append('.')
+                .Append(registration.FactoryMethodName)
+                .Append(registration.UsesServiceProvider ? "(services)" : "()")
+                .AppendLine(");");
+        }
+
+        foreach (var descriptorProviderType in descriptorProviderTypes.Distinct())
+        {
+            builder.Append("        foreach (var descriptor in new ")
+                .Append(descriptorProviderType)
+                .AppendLine("().GetDescriptors())");
+            builder.AppendLine("        {");
+            builder.AppendLine("            services.Add(descriptor);");
+            builder.AppendLine("        }");
         }
 
         builder.AppendLine();
@@ -421,6 +761,51 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
                 hash = (hash * 397) ^ ImplementationTypeName.GetHashCode();
                 hash = (hash * 397) ^ ServiceLifetime.GetHashCode();
                 hash = (hash * 397) ^ IsPostInit.GetHashCode();
+                return hash;
+            }
+        }
+    }
+
+    private sealed class FactoryRegistrationModel : IEquatable<FactoryRegistrationModel>
+    {
+        public FactoryRegistrationModel(string serviceTypeName, string factoryTypeName, string factoryMethodName, string serviceLifetime, bool usesServiceProvider)
+        {
+            ServiceTypeName = serviceTypeName;
+            FactoryTypeName = factoryTypeName;
+            FactoryMethodName = factoryMethodName;
+            ServiceLifetime = serviceLifetime;
+            UsesServiceProvider = usesServiceProvider;
+        }
+
+        public string ServiceTypeName { get; }
+
+        public string FactoryTypeName { get; }
+
+        public string FactoryMethodName { get; }
+
+        public string ServiceLifetime { get; }
+
+        public bool UsesServiceProvider { get; }
+
+        public bool Equals(FactoryRegistrationModel? other)
+            => other is not null
+               && ServiceTypeName == other.ServiceTypeName
+               && FactoryTypeName == other.FactoryTypeName
+               && FactoryMethodName == other.FactoryMethodName
+               && ServiceLifetime == other.ServiceLifetime
+               && UsesServiceProvider == other.UsesServiceProvider;
+
+        public override bool Equals(object? obj) => Equals(obj as FactoryRegistrationModel);
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hash = ServiceTypeName.GetHashCode();
+                hash = (hash * 397) ^ FactoryTypeName.GetHashCode();
+                hash = (hash * 397) ^ FactoryMethodName.GetHashCode();
+                hash = (hash * 397) ^ ServiceLifetime.GetHashCode();
+                hash = (hash * 397) ^ UsesServiceProvider.GetHashCode();
                 return hash;
             }
         }

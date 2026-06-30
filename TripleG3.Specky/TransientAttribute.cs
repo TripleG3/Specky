@@ -7,6 +7,9 @@ public class TransientAttribute : SpeckAttribute
 {
     /// <summary>Create a transient registration of the decorated type.</summary>
     public TransientAttribute() : base(ServiceLifetime.Transient) { }
+
+    /// <summary>Create a transient registration for the specified service type.</summary>
+    public TransientAttribute(Type serviceType) : base(ServiceLifetime.Transient, serviceType) { }
 }
 
 /// <summary>Registers the decorated type as the implementation of <typeparamref name="T"/> with transient lifetime.</summary>

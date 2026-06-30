@@ -15,6 +15,25 @@ internal interface IGenericHandler<TRequest, TResponse>
 {
 }
 
+internal interface ICleanGenericRepository<T>
+{
+}
+
+internal interface IFactoryConsole
+{
+    bool IsEnabled { get; }
+}
+
+internal interface IFactoryGreetingService
+{
+    string Greet(string name);
+}
+
+internal interface IDescriptorRegisteredService
+{
+    string Name { get; }
+}
+
 internal class GenericRepository<T> : IGenericRepository<T>
 {
 }
@@ -23,8 +42,13 @@ internal class InvalidGenericRepository<TKey, TValue> : IGenericRepository<TKey>
 {
 }
 
-[MultiServiceSpeck(ServiceLifetime.Scoped, typeof(IGenericRepository<>), typeof(IGenericRepository<>))]
+[Scoped(typeof(IGenericRepository<>))]
 internal class GenericScopedRepository<T> : IGenericRepository<T>
+{
+}
+
+[Scoped(typeof(ICleanGenericRepository<>))]
+internal class CleanGenericRepository<T> : ICleanGenericRepository<T>
 {
 }
 
@@ -106,7 +130,42 @@ internal class MultiTransientFoo : IFooBoth
     public DateTime Time { get; set; }
 }
 
-[MultiScoped(typeof(IGenericRepository<>), typeof(IGenericRepository<>))]
+[Scoped(typeof(IGenericRepository<>))]
 internal class OpenGenericDuplicateContracts<T> : IGenericRepository<T>
 {
+}
+
+internal sealed class FactoryConsole : IFactoryConsole
+{
+    public bool IsEnabled { get; init; }
+}
+
+internal sealed class FactoryGreetingService(IFactoryConsole console) : IFactoryGreetingService
+{
+    public string Greet(string name) => console.IsEnabled ? $"Hello, {name}!" : string.Empty;
+}
+
+internal static class TestFactoryRegistrations
+{
+    [SingletonFactory<IFactoryConsole>]
+    public static IFactoryConsole CreateConsole()
+        => new FactoryConsole { IsEnabled = true };
+
+    [ScopedFactory<IFactoryGreetingService>]
+    public static IFactoryGreetingService CreateGreeting(IServiceProvider services)
+        => new FactoryGreetingService(services.GetRequiredService<IFactoryConsole>());
+}
+
+internal sealed class DescriptorRegisteredService : IDescriptorRegisteredService
+{
+    public string Name => nameof(DescriptorRegisteredService);
+}
+
+[SpeckyDescriptorProvider]
+public sealed class TestDescriptorProvider : ISpeckyDescriptorProvider
+{
+    public IEnumerable<ServiceDescriptor> GetDescriptors()
+    {
+        yield return ServiceDescriptor.Singleton<IDescriptorRegisteredService, DescriptorRegisteredService>();
+    }
 }

@@ -21,7 +21,9 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\TripleG3.Specky\TripleG3.Specky.csproj" />
-		<ProjectReference Include="..\TripleG3.Specky.Generators\TripleG3.Specky.Generators.csproj" />
+		<ProjectReference Include="..\TripleG3.Specky.Generators\TripleG3.Specky.Generators.csproj"
+		                  OutputItemType="Analyzer"
+		                  ReferenceOutputAssembly="false" />
 	</ItemGroup>
 
 </Project>

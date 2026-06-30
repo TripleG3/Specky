@@ -7,6 +7,9 @@ public class ScopedAttribute : SpeckAttribute
 {
     /// <summary>Create a scoped registration of the decorated type.</summary>
     public ScopedAttribute() : base(ServiceLifetime.Scoped) { }
+
+    /// <summary>Create a scoped registration for the specified service type.</summary>
+    public ScopedAttribute(Type serviceType) : base(ServiceLifetime.Scoped, serviceType) { }
 }
 
 /// <summary>Registers the decorated type as the implementation of <typeparamref name="T"/> with scoped lifetime.</summary>
