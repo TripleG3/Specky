@@ -10,6 +10,30 @@ namespace TripleG3.Specky.Generators;
 [Generator]
 public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
 {
+    private static readonly DiagnosticDescriptor ServiceContractMismatchRule = new(
+        id: "SPKY001",
+        title: "Service contract mismatch",
+        messageFormat: "'{0}' does not implement or inherit service contract '{1}'",
+        category: "TripleG3.Specky",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor OpenGenericArityMismatchRule = new(
+        id: "SPKY002",
+        title: "Open generic arity mismatch",
+        messageFormat: "Open generic implementation '{0}' cannot be registered for '{1}' because generic arity does not match",
+        category: "TripleG3.Specky",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor InterfaceImplementationRule = new(
+        id: "SPKY003",
+        title: "Interface cannot be implementation",
+        messageFormat: "'{0}' is an interface and cannot be registered as an implementation type",
+        category: "TripleG3.Specky",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var typeDeclarations = context.SyntaxProvider
@@ -23,7 +47,7 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(compilationAndCandidates, static (sourceProductionContext, pair) =>
         {
             var (compilation, candidates) = pair;
-            var registrations = BuildRegistrations(compilation, candidates!);
+            var registrations = BuildRegistrations(compilation, candidates!, sourceProductionContext);
             var source = GenerateExtensionsSource(registrations);
             sourceProductionContext.AddSource("TripleG3.Specky.Generated.g.cs", SourceText.From(source, Encoding.UTF8));
         });
@@ -39,7 +63,7 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
         return context.SemanticModel.GetDeclaredSymbol(classDeclaration) as INamedTypeSymbol;
     }
 
-    private static ImmutableArray<RegistrationModel> BuildRegistrations(Compilation compilation, ImmutableArray<INamedTypeSymbol?> candidates)
+    private static ImmutableArray<RegistrationModel> BuildRegistrations(Compilation compilation, ImmutableArray<INamedTypeSymbol?> candidates, SourceProductionContext sourceProductionContext)
     {
         var registrations = ImmutableArray.CreateBuilder<RegistrationModel>();
         var speckAttributeSymbol = compilation.GetTypeByMetadataName("TripleG3.Specky.SpeckAttribute");
@@ -76,6 +100,11 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
 
                 foreach (var serviceType in serviceTypes)
                 {
+                    if (!TryValidateRegistration(candidate, serviceType, attribute, sourceProductionContext))
+                    {
+                        continue;
+                    }
+
                     registrations.Add(new RegistrationModel(
                         ToTypeExpression(serviceType),
                         ToTypeExpression(candidate),
@@ -116,6 +145,102 @@ public sealed class TripleG3SpeckyIncrementalGenerator : IIncrementalGenerator
         }
 
         return builder.ToImmutable();
+    }
+
+    private static bool TryValidateRegistration(INamedTypeSymbol implementationType, ITypeSymbol serviceType, AttributeData attribute, SourceProductionContext sourceProductionContext)
+    {
+        var location = attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? implementationType.Locations.FirstOrDefault();
+        if (location is null)
+        {
+            return false;
+        }
+
+        if (implementationType.TypeKind == TypeKind.Interface)
+        {
+            sourceProductionContext.ReportDiagnostic(Diagnostic.Create(
+                InterfaceImplementationRule,
+                location,
+                implementationType.ToDisplayString()));
+            return false;
+        }
+
+        if (serviceType is INamedTypeSymbol namedServiceType && namedServiceType.IsGenericType && implementationType.IsGenericType)
+        {
+            var serviceArity = namedServiceType.IsUnboundGenericType || namedServiceType.IsDefinition ? namedServiceType.TypeArguments.Length : namedServiceType.Arity;
+            var implementationArity = implementationType.Arity;
+            if (namedServiceType.IsUnboundGenericType || namedServiceType.IsDefinition || implementationType.IsDefinition)
+            {
+                if (serviceArity != implementationArity)
+                {
+                    sourceProductionContext.ReportDiagnostic(Diagnostic.Create(
+                        OpenGenericArityMismatchRule,
+                        location,
+                        implementationType.ToDisplayString(),
+                        serviceType.ToDisplayString()));
+                    return false;
+                }
+            }
+        }
+
+        if (!ImplementsContract(implementationType, serviceType))
+        {
+            sourceProductionContext.ReportDiagnostic(Diagnostic.Create(
+                ServiceContractMismatchRule,
+                location,
+                implementationType.ToDisplayString(),
+                serviceType.ToDisplayString()));
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool ImplementsContract(INamedTypeSymbol implementationType, ITypeSymbol serviceType)
+    {
+        if (SymbolEqualityComparer.Default.Equals(implementationType, serviceType))
+        {
+            return true;
+        }
+
+        if (serviceType is INamedTypeSymbol namedServiceType && namedServiceType.IsGenericType)
+        {
+            if (namedServiceType.IsUnboundGenericType || namedServiceType.IsDefinition)
+            {
+                return implementationType.AllInterfaces.Any(i =>
+                           i.IsGenericType &&
+                           SymbolEqualityComparer.Default.Equals(i.ConstructedFrom, namedServiceType))
+                       || InheritsOpenGeneric(implementationType, namedServiceType);
+            }
+        }
+
+        return implementationType.AllInterfaces.Any(i => SymbolEqualityComparer.Default.Equals(i, serviceType))
+               || InheritsConcrete(implementationType, serviceType);
+    }
+
+    private static bool InheritsConcrete(INamedTypeSymbol implementationType, ITypeSymbol serviceType)
+    {
+        for (var current = implementationType.BaseType; current is not null; current = current.BaseType)
+        {
+            if (SymbolEqualityComparer.Default.Equals(current, serviceType))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool InheritsOpenGeneric(INamedTypeSymbol implementationType, INamedTypeSymbol serviceType)
+    {
+        for (var current = implementationType; current is not null; current = current.BaseType)
+        {
+            if (current.IsGenericType && SymbolEqualityComparer.Default.Equals(current.ConstructedFrom, serviceType))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static string ToTypeExpression(ITypeSymbol symbol)

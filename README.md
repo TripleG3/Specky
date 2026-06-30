@@ -1,10 +1,10 @@
 # 🎯 TripleG3.Specky
 
- > **Specky** = attribute-powered dependency injection for `.NET 10` with a generator-first workflow and a reflection fallback when you need to get a little weird.
+> **Specky** = attribute-powered dependency injection for `.NET 10`, with compile-time generation first and runtime scanning when you actually want it.
 
- If `Program.cs` has started to look like a scroll of ancient service-registration prophecy, Specky is here to help.
+If your DI setup is starting to read like a tax document written by `IServiceCollection`, Specky can clean that up.
 
- Mark your types. Generate your registrations. Keep startup clean. Ship code. Smile mysteriously.
+Tag the type. Call one method. Move on with your life.
 
  ---
 
@@ -13,14 +13,14 @@
  **Fast to author.**
  Add an attribute. Done.
 
- **Clean startup.**
- Use `AddTripleG3Specky()` instead of hand-writing a wall of `AddScoped`, `AddSingleton`, and `AddTransient` calls.
+**Clean startup.**
+Use `AddTripleG3Specky()` instead of hand-writing a decorative brick wall of `AddScoped`, `AddSingleton`, and `AddTransient` calls.
 
  **Generator-first.**
  Preferred for `.NET 10`: compile-time registrations, less runtime reflection, happier startup path.
 
- **Flexible.**
- Need runtime scanning? Specky still supports it.
+**Flexible.**
+Need runtime scanning? Specky still supports it without acting personally offended.
 
  **Modern.**
  Supports:
@@ -32,7 +32,7 @@
  - first-pass open generic registrations
  - configuration-interface patterns
 
- In short: **less ceremony, more intent**.
+In short: **less ceremony, more intent, fewer regret-scrolls in `Program.cs`**.
 
  ---
 
@@ -42,9 +42,9 @@
  builder.Services.AddTripleG3Specky();
  ```
 
- That’s the happy path.
+That’s the happy path.
 
- Generator on. Boilerplate off.
+Generator on. Boilerplate off. Coffee still optional.
 
  ---
 
@@ -54,7 +54,7 @@
  builder.Services.AddSpecks<Program>();
  ```
 
- When you want runtime scanning, plugin-ish behavior, or controlled chaos.
+When you want runtime scanning, plugin-ish behavior, or a carefully supervised amount of chaos.
 
  ---
 
@@ -71,7 +71,7 @@
  builder.Services.AddTripleG3Specky();
  ```
 
- No registration wall. No repetitive glue. No tiny sadness.
+No registration wall. No repetitive glue. No tiny sadness in the startup pipeline.
 
  ---
 
@@ -184,13 +184,14 @@
  public sealed class Repository<T> : IRepository<T>;
  ```
 
- **Open generics, first-pass style.**
+**Open generics, first-pass style.**
 
  Notes:
 
- - conservative by design
- - generic arity must match
- - implementation must actually satisfy the open generic contract
+- conservative by design
+- generic arity must match
+- implementation must actually satisfy the open generic contract
+- generator diagnostics help catch invalid mappings early
 
  ---
 
@@ -250,7 +251,9 @@
  builder.Services.AddTripleG3Specky();
  ```
 
- **Compile-time registrations. Preferred.**
+**Compile-time registrations. Preferred.**
+
+This is the main event.
 
  ---
 
@@ -291,7 +294,9 @@
  cannot be assigned
  ```
 
- Implementation does not satisfy the service contract.
+Implementation does not satisfy the service contract.
+
+The generator/runtime validation will complain before your container has the chance to do interpretive dance.
 
  ### Void
 
@@ -315,22 +320,23 @@
  generic arity does not match
  ```
 
- Your open generic service and implementation definitions do not line up.
+Your open generic service and implementation definitions do not line up.
+
+This usually means arity mismatch or a contract the implementation does not actually satisfy.
 
  ---
 
  ## 📌 Limits
 
- - open generic support is intentionally conservative
- - source generation is first-pass, not full analyzer-magic perfection yet
- - runtime scanning still exists because sometimes reality is rude
+- open generic support is intentionally conservative
+- source generation is first-pass, but already useful and preferred
+- compile-time diagnostics exist, but richer analyzer coverage can still improve
+- runtime scanning still exists because sometimes reality is rude
 
  ---
 
  ## 🛣 Roadmap
 
- - richer generator diagnostics
- - stronger compile-time validation
  - more polished open generic ergonomics
  - optional deeper AOT-focused workflow improvements
 
