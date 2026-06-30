@@ -263,10 +263,15 @@ public static class Extensions
 
     internal static void AddSpeck(this IServiceCollection serviceCollection, Type serviceType, Type implementationType, ServiceLifetime serviceLifetime, object? serviceKey, SpeckyOptions options, HashSet<ServiceTriple> existing)
     {
-        if (!implementationType.IsAssignableTo(serviceType))
+        if (IsOpenGenericRegistration(serviceType, implementationType))
+        {
+            ValidateOpenGenericRegistration(serviceType, implementationType);
+        }
+        else if (!implementationType.IsAssignableTo(serviceType))
         {
             throw new SpeckyException($"Specky cannot inject {implementationType.Name} type because it cannot be assigned to {serviceType.Name}.\n{serviceType.Name}.{implementationType.Name}");
         }
+
         if (implementationType.IsInterface)
         {
             throw new SpeckyException($"Specky cannot inject {implementationType.Name} because it is an interface.\n{serviceType.Name}.{implementationType.Name}");
@@ -297,6 +302,54 @@ public static class Extensions
                 serviceCollection.Add(new ServiceDescriptor(serviceType, implementationType, serviceLifetime));
                 break;
         }
+    }
+
+    private static bool IsOpenGenericRegistration(Type serviceType, Type implementationType)
+        => serviceType.IsGenericTypeDefinition || implementationType.IsGenericTypeDefinition;
+
+    private static void ValidateOpenGenericRegistration(Type serviceType, Type implementationType)
+    {
+        if (!serviceType.IsGenericTypeDefinition || !implementationType.IsGenericTypeDefinition)
+        {
+            throw new SpeckyException($"Specky requires both {serviceType.Name} and {implementationType.Name} to be open generic type definitions when registering open generics.\n{serviceType.Name}.{implementationType.Name}");
+        }
+
+        if (implementationType.IsInterface)
+        {
+            throw new SpeckyException($"Specky cannot inject {implementationType.Name} because it is an interface.\n{serviceType.Name}.{implementationType.Name}");
+        }
+
+        var serviceParameterCount = serviceType.GetGenericArguments().Length;
+        var implementationParameterCount = implementationType.GetGenericArguments().Length;
+        if (serviceParameterCount != implementationParameterCount)
+        {
+            throw new SpeckyException($"Specky cannot inject open generic {implementationType.Name} into {serviceType.Name} because their generic arity does not match.\n{serviceType.Name}.{implementationType.Name}");
+        }
+
+        if (!ImplementsOpenGenericContract(implementationType, serviceType))
+        {
+            throw new SpeckyException($"Specky cannot inject open generic {implementationType.Name} because it does not implement or inherit {serviceType.Name}.\n{serviceType.Name}.{implementationType.Name}");
+        }
+    }
+
+    private static bool ImplementsOpenGenericContract(Type implementationType, Type serviceType)
+    {
+        if (serviceType.IsInterface)
+        {
+            return implementationType
+                .GetInterfaces()
+                .Any(interfaceType => interfaceType.IsGenericType && interfaceType.GetGenericTypeDefinition() == serviceType);
+        }
+
+        for (var current = implementationType; current is not null && current != typeof(object); current = current.BaseType)
+        {
+            if (current.IsGenericType && current.GetGenericTypeDefinition() == serviceType)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
 

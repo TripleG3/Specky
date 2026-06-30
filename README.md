@@ -1,6 +1,6 @@
 # TripleG3.Specky
 
-Simple, attribute‑driven service registration for `Microsoft.Extensions.DependencyInjection` on .NET 8+.
+Simple, attribute‑driven service registration for `Microsoft.Extensions.DependencyInjection` on `.NET 10`.
 
 Stop writing repetitive `AddScoped<,>()`, `AddSingleton<>()`, and boilerplate configuration glue. Annotate your types (or list them in lightweight configuration interfaces) and let Specky do the rest.
 
@@ -63,7 +63,11 @@ That’s it – no explicit `AddScoped<TimeProvider>()` needed.
 | `[Singleton<T>]` | Registers `<T>` implemented by decorated type | `T` | Singleton |
 | `[Scoped<T>]` | Registers `<T>` implemented by decorated type | `T` | Scoped |
 | `[Transient<T>]` | Registers `<T>` implemented by decorated type | `T` | Transient |
+| `[MultiSingleton(...)]` | Registers multiple service types implemented by decorated type | `Type[]` | Singleton |
+| `[MultiScoped(...)]` | Registers multiple service types implemented by decorated type | `Type[]` | Scoped |
+| `[MultiTransient(...)]` | Registers multiple service types implemented by decorated type | `Type[]` | Transient |
 | `[SingletonPostInit]` / `[SingletonPostInit<T>]` | Like Singleton + eager resolve after build | Self / `T` | Singleton |
+| `[MultiSingletonPostInit(...)]` | Multi-service singleton + eager resolve after build | `Type[]` | Singleton |
 
 Apply multiple attributes if you want one class to fulfill several interfaces:
 
@@ -198,13 +202,11 @@ using TripleG3.Specky;
  
 ## 🧭 Limitations (Current)
 
-* Multiple service interfaces require multiple attributes
-* Open generics not yet supported
+* Open generic support is intentionally first-pass and conservative
 * Source generator not (yet) provided
 
 ### Roadmap
 
-* Open generic support
 * Optional source generator for AOT / zero reflection
 
 ## 🆕 Multi‑Service Attributes
@@ -224,10 +226,17 @@ public class ClockService : IClock, ITimer { }
 public class Handler : ICommand, IQueryHandler { }
 ```
 
+Open generic registrations are also supported for common cases:
+
+```csharp
+[MultiServiceSpeck(ServiceLifetime.Scoped, typeof(IRepository<>), typeof(IRepository<>))]
+public class Repository<T> : IRepository<T> { }
+```
+
 For eager singleton activation after app build:
 
 ```csharp
-[SingletonPostInit(typeof(IWarmupTask), typeof(ICachePrimer))]
+[MultiSingletonPostInit(typeof(IWarmupTask), typeof(ICachePrimer))]
 public class WarmupService : IWarmupTask, ICachePrimer { }
 ```
 

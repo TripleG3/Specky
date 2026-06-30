@@ -7,6 +7,31 @@ internal interface IFooBoth : IFooId, IFooTime
 {
 }
 
+internal interface IGenericRepository<T>
+{
+}
+
+internal interface IGenericHandler<TRequest, TResponse>
+{
+}
+
+internal class GenericRepository<T> : IGenericRepository<T>
+{
+}
+
+internal class InvalidGenericRepository<TKey, TValue> : IGenericRepository<TKey>
+{
+}
+
+[MultiServiceSpeck(ServiceLifetime.Scoped, typeof(IGenericRepository<>), typeof(IGenericRepository<>))]
+internal class GenericScopedRepository<T> : IGenericRepository<T>
+{
+}
+
+internal class InvalidOpenGenericMultiMap<T> : IGenericRepository<T>
+{
+}
+
 internal class A_Foo : IFooId, IFooTime
 {
     public int Id { get; set; }
@@ -79,4 +104,9 @@ internal class MultiTransientFoo : IFooBoth
 {
     public int Id { get; set; }
     public DateTime Time { get; set; }
+}
+
+[MultiScoped(typeof(IGenericRepository<>), typeof(IGenericRepository<>))]
+internal class OpenGenericDuplicateContracts<T> : IGenericRepository<T>
+{
 }

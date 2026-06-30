@@ -67,10 +67,13 @@ public class ExtensionsTests
         var serviceProvider = new MockServiceCollecton();
 
         //Act
-        serviceProvider.AddSpecks<ExtensionsTests>();
+        serviceProvider.AddSpecks(opts =>
+        {
+            opts.AddAssembly<ExtensionsTests>();
+        });
 
         //Assert
-        Assert.AreEqual(13, serviceProvider.Count);
+        Assert.AreEqual(15, serviceProvider.Count);
         var a = serviceProvider.Any(x => x.ServiceType == typeof(IFooTime)
         && x.ImplementationType == typeof(B_Foo)
         && x.Lifetime == ServiceLifetime.Singleton);
@@ -129,6 +132,14 @@ public class ExtensionsTests
         && x.ImplementationType == typeof(MultiTransientFoo)
         && x.Lifetime == ServiceLifetime.Transient);
 
+        var openGenericScoped = serviceProvider.Any(x => x.ServiceType == typeof(IGenericRepository<>)
+        && x.ImplementationType == typeof(GenericScopedRepository<>)
+        && x.Lifetime == ServiceLifetime.Scoped);
+
+        var openGenericDuplicateContract = serviceProvider.Any(x => x.ServiceType == typeof(IGenericRepository<>)
+        && x.ImplementationType == typeof(OpenGenericDuplicateContracts<>)
+        && x.Lifetime == ServiceLifetime.Scoped);
+
         Assert.IsTrue(a);
         Assert.IsTrue(b);
         Assert.IsTrue(c);
@@ -142,5 +153,21 @@ public class ExtensionsTests
         Assert.IsTrue(multiSingletonTime);
         Assert.IsTrue(multiTransientId);
         Assert.IsTrue(multiTransientTime);
+        Assert.IsTrue(openGenericScoped);
+        Assert.IsTrue(openGenericDuplicateContract);
+    }
+
+    [TestMethod()]
+    public void AddSpecksUseConfigurationsOnlyStillThrowsForInvalidScannedTypes()
+    {
+        var serviceProvider = new MockServiceCollecton();
+
+        var exception = Assert.ThrowsException<SpeckyException>(() => serviceProvider.AddSpecks(opts =>
+        {
+            opts.AddAssembly<InvalidOpenGenericMultiMap<int>>();
+            opts.UseConfigurationsOnly = true;
+        }));
+
+        StringAssert.Contains(exception.Message, "interface");
     }
 }
