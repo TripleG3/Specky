@@ -21,7 +21,7 @@ internal static class SpeckyCaches
     /// <summary>
     /// Builds a hash set of existing (service, implementation, lifetime, key) tuples for fast duplicate rejection.
     /// </summary>
-    public static HashSet<ServiceTriple> BuildExistingDescriptorSet(IReadOnlyCollection<ServiceDescriptor> descriptors)
+    public static HashSet<ServiceTriple> BuildExistingDescriptorSet(IEnumerable<ServiceDescriptor> descriptors)
     {
         var set = new HashSet<ServiceTriple>(ServiceTriple.Comparer);
         foreach (var d in descriptors)

@@ -5,7 +5,7 @@ namespace Specky7.Tests;
 
 internal class MockServiceCollecton : IServiceCollection
 {
-    readonly List<ServiceDescriptor> services = new();
+    readonly List<ServiceDescriptor> services = [];
     public ServiceDescriptor this[int index] { get => services[index]; set => services[index] = value; }
     public int Count => services.Count;
     public bool IsReadOnly => true;
