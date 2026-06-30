@@ -1,254 +1,355 @@
-# TripleG3.Specky
+# 🎯 TripleG3.Specky
 
-Simple, attribute‑driven service registration for `Microsoft.Extensions.DependencyInjection` on `.NET 10`.
+ > **Specky** = attribute-powered dependency injection for `.NET 10` with a generator-first workflow and a reflection fallback when you need to get a little weird.
 
-Stop writing repetitive `AddScoped<,>()`, `AddSingleton<>()`, and boilerplate configuration glue. Annotate your types (or list them in lightweight configuration interfaces) and let Specky do the rest.
+ If `Program.cs` has started to look like a scroll of ancient service-registration prophecy, Specky is here to help.
 
----
-## ✨ Features
+ Mark your types. Generate your registrations. Keep startup clean. Ship code. Smile mysteriously.
 
-* Tiny API – one call: `builder.Services.AddSpecks<Program>();`
-* Attribute registration for classes, properties, fields, and methods (in configuration interfaces)
-* Interface configuration model (declare everything in one place – zero changes to `Program.cs` later)
-* Options filtering (`[SpeckyConfiguration(Option="Prod")]` + `opts.AddOption("Prod")`)
-* Post‑initialization singleton activation (`[SingletonPostInit]` + `app.UseSpeckyPostSpecks()`)
-* Multi‑assembly scanning (`opts.AddAssemblies(...)`)
-* Configurations‑only mode (skip full assembly scan)
-* Duplicate registration prevention & internal caching for speed
-* Ships for `.NET 10`
+ ---
 
----
-## 🚀 Quick Start
+ ## ✨ Why Specky?
 
-1. Install the package:
+ **Fast to author.**
+ Add an attribute. Done.
 
-    ```bash
-    dotnet add package TripleG3.Specky
-    ```
+ **Clean startup.**
+ Use `AddTripleG3Specky()` instead of hand-writing a wall of `AddScoped`, `AddSingleton`, and `AddTransient` calls.
 
-2. Annotate a class:
+ **Generator-first.**
+ Preferred for `.NET 10`: compile-time registrations, less runtime reflection, happier startup path.
 
-    ```csharp
-    using TripleG3.Specky;
+ **Flexible.**
+ Need runtime scanning? Specky still supports it.
 
-    [Scoped]
-    public class TimeProvider { public DateTime Now() => DateTime.UtcNow; }
-    ```
+ **Modern.**
+ Supports:
 
-3. Register in `Program.cs` (or wherever you build the container):
+ - standard registrations
+ - multi-service registrations
+ - keyed registrations
+ - post-init singletons
+ - first-pass open generic registrations
+ - configuration-interface patterns
 
-    ```csharp
-    builder.Services.AddSpecks<Program>();
-    ```
+ In short: **less ceremony, more intent**.
 
-4. Inject & use:
+ ---
 
-    ```csharp
-    public class HomeController(TimeProvider clock) : Controller
-    {
-         public IActionResult Index() => Content(clock.Now().ToString());
-    }
-    ```
+ ## 🚀 Preferred
 
-That’s it – no explicit `AddScoped<TimeProvider>()` needed.
+ ```csharp
+ builder.Services.AddTripleG3Specky();
+ ```
 
----
-## 🔖 Attribute Reference
+ That’s the happy path.
 
-| Attribute | Effect | Service Type | Lifetime |
-|-----------|--------|--------------|----------|
-| `[Singleton]` | Self registration | Decorated type | Singleton |
-| `[Scoped]` | Self registration | Decorated type | Scoped |
-| `[Transient]` | Self registration | Decorated type | Transient |
-| `[Singleton<T>]` | Registers `<T>` implemented by decorated type | `T` | Singleton |
-| `[Scoped<T>]` | Registers `<T>` implemented by decorated type | `T` | Scoped |
-| `[Transient<T>]` | Registers `<T>` implemented by decorated type | `T` | Transient |
-| `[MultiSingleton(...)]` | Registers multiple service types implemented by decorated type | `Type[]` | Singleton |
-| `[MultiScoped(...)]` | Registers multiple service types implemented by decorated type | `Type[]` | Scoped |
-| `[MultiTransient(...)]` | Registers multiple service types implemented by decorated type | `Type[]` | Transient |
-| `[SingletonPostInit]` / `[SingletonPostInit<T>]` | Like Singleton + eager resolve after build | Self / `T` | Singleton |
-| `[MultiSingletonPostInit(...)]` | Multi-service singleton + eager resolve after build | `Type[]` | Singleton |
+ Generator on. Boilerplate off.
 
-Apply multiple attributes if you want one class to fulfill several interfaces:
+ ---
 
-```csharp
-[Scoped<IFoo>]
-[Scoped<IBar>]
-public class FooBar : IFoo, IBar { }
-```
+ ## 🧪 Fallback
 
----
-## 🧩 Configuration Interfaces
+ ```csharp
+ builder.Services.AddSpecks<Program>();
+ ```
 
-Prefer a central declaration over scattered attributes? Define an interface, mark it with `[SpeckyConfiguration]`, and list members whose types you want registered.
+ When you want runtime scanning, plugin-ish behavior, or controlled chaos.
 
-```csharp
-using TripleG3.Specky;
+ ---
 
-[SpeckyConfiguration]
-public interface ICoreServices
-{
-    [Singleton]     AppStartup Startup;          // registers AppStartup as singleton
-    [Scoped<IRepo>] EfRepository Repo;           // registers IRepo -> EfRepository scoped
-    [Transient<ILogger>] ConsoleLogger Logger;  // registers ILogger -> ConsoleLogger transient
-    [Scoped<IWorker>] Worker Worker;            // registers IWorker -> Worker scoped
-}
-```
+ ## 🔥 Quick Win
 
-Activate them:
- 
-```csharp
-builder.Services.AddSpecks<Program>(opts =>
-{
-    opts.UseConfigurationsOnly = true; // discover all [SpeckyConfiguration] interfaces in assemblies
-});
-```
-or explicitly:
- 
-```csharp
-builder.Services.AddSpecks<Program>(opts =>
-{
-    opts.AddConfiguration<ICoreServices>();
-});
-```
+ ```csharp
+ using TripleG3.Specky;
 
-### Methods as Declarations
+ [Scoped<IMailer>]
+ public sealed class Mailer : IMailer;
+ ```
 
-You can use methods (return type becomes the implementation):
- 
-```csharp
-[SpeckyConfiguration]
-public interface IMethodConfig
-{
-    [Singleton] Startup BuildStartup(); // Registers Startup as singleton
-}
-```
-Attributed `void` return methods are invalid and will throw an error.
+ ```csharp
+ builder.Services.AddTripleG3Specky();
+ ```
 
- 
-## 🎛 Options Filtering
+ No registration wall. No repetitive glue. No tiny sadness.
 
-Target environment‑specific sets:
- 
-```csharp
-[SpeckyConfiguration(Option="Prod")] public interface IProdConfig { [Singleton] ProdService S; }
-[SpeckyConfiguration(Option="Dev")]  public interface IDevConfig  { [Singleton] DevService  S; }
+ ---
 
-builder.Services.AddSpecks<Program>(opts =>
-{
-    opts.AddConfiguration<IProdConfig>();
-    opts.AddConfiguration<IDevConfig>();
-    opts.AddOption("Dev"); // Only IDevConfig applied
-});
-```
+ ## 🧭 Index
 
-Add multiple options for additive inclusion.
+ - [Preferred](#-preferred)
+ - [Fallback](#-fallback)
+ - [Scoped](#-scoped)
+ - [Singleton](#-singleton)
+ - [Transient](#-transient)
+ - [Self](#-self)
+ - [Multi](#-multi)
+ - [Keyed](#-keyed)
+ - [PostInit](#-postinit)
+ - [Generic](#-generic)
+ - [Config](#-config)
+ - [Options](#-options)
+ - [Generated](#-generated)
+ - [Errors](#-errors)
+ - [Limits](#-limits)
 
- 
-## 🔄 Multi‑Assembly Scanning
+ ---
 
-```csharp
-builder.Services.AddSpecks<Program>(opts =>
-{
-    opts.AddAssembly<Program>();
-    opts.AddAssemblies(typeof(SomeSharedType).Assembly, typeof(OtherLib.Marker).Assembly);
-});
-```
-If you don’t specify any, the entry assembly is used.
+ ## 🟦 Scoped
 
- 
-## ⚡ Post‑Initialization
+ ```csharp
+ [Scoped<IClock>]
+ public sealed class ClockService : IClock;
+ ```
 
-Need a singleton constructed immediately after building the app (e.g., warm caches)?
- 
-```csharp
-[SingletonPostInit]
-public class WarmupCache { public WarmupCache(IMyDataSource ds) { /* pre-load */ } }
+ **Per scope.**
 
-builder.Services.AddSpecks<Program>();
-app.UseSpeckyPostSpecks(); // triggers resolution of all post-init singletons
-```
+ ---
 
- 
-## 🛡 Duplicate Protection & Performance
+ ## 🟨 Singleton
 
-Specky maintains a hash set of existing descriptors to avoid duplicate identical registrations and caches discovered attributes to minimize reflection overhead.
+ ```csharp
+ [Singleton<ICache>]
+ public sealed class CacheService : ICache;
+ ```
 
- 
-## 🧪 Full Minimal Example
+ **One forever.**
 
-```csharp
-// Program.cs
-var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddSpecks<Program>();
-var app = builder.Build();
-app.MapGet("/time", (Clock c) => c.Now());
-app.Run();
+ ---
 
-// Clock.cs
-using TripleG3.Specky;
-[Singleton] public class Clock { public DateTime Now() => DateTime.UtcNow; }
-```
+ ## 🟪 Transient
 
- 
-## ❗ Common Errors
+ ```csharp
+ [Transient<IFormatter>]
+ public sealed class Formatter : IFormatter;
+ ```
 
-| Message (truncated) | Cause | Fix |
-|---------------------|-------|-----|
-| "cannot be assigned" | Implementation doesn’t implement service interface | Make class implement interface or change attribute generic |
-| "expected to inject with configurations but none was found" | `UseConfigurationsOnly` true but no config interfaces discovered | Add / mark config interface |
-| "methods cannot return void" | Attributed config method returns `void` | Return a concrete type |
+ **Fresh every time.**
 
- 
-## 🧭 Limitations (Current)
+ ---
 
-* Open generic support is intentionally first-pass and conservative
-* Source generator not (yet) provided
+ ## 🟩 Self
 
-### Roadmap
+ ```csharp
+ [Scoped]
+ public sealed class TimeProvider;
+ ```
 
-* Optional source generator for AOT / zero reflection
+ **Register concrete as itself.**
 
-## 🆕 Multi‑Service Attributes
+ ---
 
-You can now register one implementation for multiple service contracts with a single attribute:
+ ## 🧩 Multi
 
-```csharp
-using TripleG3.Specky;
+ ```csharp
+ [MultiScoped(typeof(IFoo), typeof(IBar))]
+ public sealed class FooBar : IFoo, IBar;
+ ```
 
-[MultiScoped(typeof(IFoo), typeof(IBar))]
-public class FooBar : IFoo, IBar { }
+ **One type. Multiple hats.**
 
-[MultiSingleton(typeof(IClock), typeof(ITimer))]
-public class ClockService : IClock, ITimer { }
+ ---
 
-[MultiTransient(typeof(ICommand), typeof(IQueryHandler))]
-public class Handler : ICommand, IQueryHandler { }
-```
+ ## 🗝 Keyed
 
-Open generic registrations are also supported for common cases:
+ ```csharp
+ [ScopedKeyed<IParser>("json")]
+ public sealed class JsonParser : IParser;
+ ```
 
-```csharp
-[MultiServiceSpeck(ServiceLifetime.Scoped, typeof(IRepository<>), typeof(IRepository<>))]
-public class Repository<T> : IRepository<T> { }
-```
+ **Named flavor.**
 
-For eager singleton activation after app build:
+ ---
 
-```csharp
-[MultiSingletonPostInit(typeof(IWarmupTask), typeof(ICachePrimer))]
-public class WarmupService : IWarmupTask, ICachePrimer { }
-```
+ ## ⚡ PostInit
 
- 
-## 🤝 Contributing
+ ```csharp
+ [SingletonPostInit<IWarmupTask>]
+ public sealed class WarmupTask : IWarmupTask;
+ ```
 
-Issues and PRs welcome. Keep it lightweight and reflection‑lean.
+ ```csharp
+ builder.Services.AddSpecks<Program>();
+ app.UseSpeckyPostSpecks();
+ ```
 
- 
-## 📄 License
+ **Wake it up immediately.**
 
-See `LICENSE` in repository.
+ ---
 
----
-Happy injecting! 🎯
+ ## 🧠 Generic
+
+ ```csharp
+ [MultiServiceSpeck(ServiceLifetime.Scoped, typeof(IRepository<>), typeof(IRepository<>))]
+ public sealed class Repository<T> : IRepository<T>;
+ ```
+
+ **Open generics, first-pass style.**
+
+ Notes:
+
+ - conservative by design
+ - generic arity must match
+ - implementation must actually satisfy the open generic contract
+
+ ---
+
+ ## 🧱 Config
+
+ ```csharp
+ [SpeckyConfiguration]
+ public interface ICoreServices
+ {
+     [Singleton] AppState State { get; }
+     [Scoped<IClock>] ClockService Clock { get; }
+ }
+ ```
+
+ ```csharp
+ builder.Services.AddSpecks<Program>(opts =>
+ {
+     opts.AddConfiguration<ICoreServices>();
+ });
+ ```
+
+ **Centralized declarations.**
+
+ ---
+
+ ## 🎛 Options
+
+ ```csharp
+ [SpeckyConfiguration("Prod")]
+ public interface IProdServices
+ {
+     [Singleton] ProdOnlyService Service { get; }
+ }
+ ```
+
+ ```csharp
+ builder.Services.AddSpecks<Program>(opts =>
+ {
+     opts.AddConfiguration<IProdServices>();
+     opts.AddOption("Prod");
+ });
+ ```
+
+ **Selective loading.**
+
+ ---
+
+ ## 🏭 Generated
+
+ ```csharp
+ builder.Services.AddTripleG3SpeckyGenerated();
+ ```
+
+ or:
+
+ ```csharp
+ builder.Services.AddTripleG3Specky();
+ ```
+
+ **Compile-time registrations. Preferred.**
+
+ ---
+
+ ## 🔄 Scan
+
+ ```csharp
+ builder.Services.AddSpecks<Program>(opts =>
+ {
+     opts.AddAssembly<Program>();
+     opts.AddAssemblies(typeof(SharedMarker).Assembly);
+ });
+ ```
+
+ **Runtime discovery.**
+
+ ---
+
+ ## 🧪 Minimal
+
+ ```csharp
+ using TripleG3.Specky;
+
+ [Singleton<IClock>]
+ public sealed class Clock : IClock;
+
+ builder.Services.AddTripleG3Specky();
+ ```
+
+ **Small. Sharp. Done.**
+
+ ---
+
+ ## 🚫 Errors
+
+ ### Assignability
+
+ ```text
+ cannot be assigned
+ ```
+
+ Implementation does not satisfy the service contract.
+
+ ### Void
+
+ ```text
+ methods cannot return void
+ ```
+
+ Attributed configuration methods must return a real implementation type.
+
+ ### Missing config
+
+ ```text
+ expected to inject with configurations but none was found
+ ```
+
+ `UseConfigurationsOnly = true` found nothing usable.
+
+ ### Generic mismatch
+
+ ```text
+ generic arity does not match
+ ```
+
+ Your open generic service and implementation definitions do not line up.
+
+ ---
+
+ ## 📌 Limits
+
+ - open generic support is intentionally conservative
+ - source generation is first-pass, not full analyzer-magic perfection yet
+ - runtime scanning still exists because sometimes reality is rude
+
+ ---
+
+ ## 🛣 Roadmap
+
+ - richer generator diagnostics
+ - stronger compile-time validation
+ - more polished open generic ergonomics
+ - optional deeper AOT-focused workflow improvements
+
+ ---
+
+ ## 🤝 Contributing
+
+ Small, sharp PRs welcome.
+
+ If it removes boilerplate, improves correctness, or saves future-you from reading a 200-line `Program.cs`, it is probably in scope.
+
+ ---
+
+ ## 📄 License
+
+ See `LICENSE`.
+
+ ---
+
+ **TripleG3.Specky**
+
+ Because typing the same DI registration 47 times is not a personality trait.

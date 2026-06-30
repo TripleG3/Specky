@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="TripleG3.Specky.Generators/TripleG3.Specky.Generators.csproj" />
   <Project Path="TripleG3.Specky.Tests/TripleG3.Specky.Tests.csproj" />
   <Project Path="TripleG3.Specky/TripleG3.Specky.csproj" />
 </Solution>
