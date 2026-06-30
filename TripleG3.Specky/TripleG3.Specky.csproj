@@ -1,18 +1,18 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<TargetFrameworks>net10.0</TargetFrameworks>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-		<PackageId>Specky7</PackageId>
+		<PackageId>TripleG3.Specky</PackageId>
 		<PackageVersion>10.0.0</PackageVersion>
 		<Title>Specky</Title>
 		<Description>Attribute-driven DI registration helper for Microsoft.Extensions.DependencyInjection.</Description>
 		<Authors>Michael Puckett, II</Authors>
 		<Company>TripleG3</Company>
 		<Copyright>@2025</Copyright>
-		<PackageProjectUrl>https://www.nuget.org/packages/Specky7</PackageProjectUrl>
+		<PackageProjectUrl>https://www.nuget.org/packages/TripleG3.Specky</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/TripleG3/Specky</RepositoryUrl>
 		<PackageTags>dotnet;AspNet;DependencyInjection;Attribute;Configuration;Specky;Blazor;IServiceProvider;IServiceCollection;DI</PackageTags>
 		<PackageReadmeFile>README.md</PackageReadmeFile>

@@ -1,4 +1,4 @@
-﻿namespace Specky7;
+namespace TripleG3.Specky;
 
 /// <summary>Registers the decorated type as a singleton service of itself.</summary>
 public class SingletonAttribute : SpeckAttribute { }

@@ -1,4 +1,4 @@
-namespace Specky7;
+namespace TripleG3.Specky;
 
 /// <summary>
 /// Represents errors thrown by Specky during service registration.

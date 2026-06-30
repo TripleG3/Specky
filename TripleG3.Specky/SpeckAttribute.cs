@@ -1,6 +1,6 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 
-namespace Specky7;
+namespace TripleG3.Specky;
 
 /// <summary>
 /// Base attribute used by Specky to register services. Can be applied to classes or configuration interface members.

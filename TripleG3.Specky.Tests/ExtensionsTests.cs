@@ -1,7 +1,7 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Specky7.Tests;
+namespace TripleG3.Specky.Tests;
 
 [TestClass()]
 public class ExtensionsTests

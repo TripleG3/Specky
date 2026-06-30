@@ -1,6 +1,6 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 
-namespace Specky7;
+namespace TripleG3.Specky;
 
 /// <summary>Registers the decorated type as a transient service of itself.</summary>
 public class TransientAttribute : SpeckAttribute

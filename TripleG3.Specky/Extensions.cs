@@ -1,8 +1,8 @@
-﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
 
-namespace Specky7;
+namespace TripleG3.Specky;
 
 /// <summary>
 /// Extension methods providing Specky service registration and post-initialization hooks.

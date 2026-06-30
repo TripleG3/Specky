@@ -1,4 +1,4 @@
-﻿namespace Specky7.Tests;
+namespace TripleG3.Specky.Tests;
 
 [SpeckyConfiguration(Option = "Invalid")]
 interface IInvalidConfiguration

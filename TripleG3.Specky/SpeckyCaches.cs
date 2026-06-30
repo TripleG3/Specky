@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Specky7;
+namespace TripleG3.Specky;
 
 /// <summary>
 /// Internal caches to reduce reflection and allocation overhead when scanning assemblies repeatedly.

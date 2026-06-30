@@ -1,4 +1,4 @@
-﻿namespace Specky7;
+namespace TripleG3.Specky;
 
 /// <summary>
 /// Marks an interface as a Specky configuration contract whose members (properties / methods) declare services to register.

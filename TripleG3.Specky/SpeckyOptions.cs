@@ -1,6 +1,6 @@
-﻿using System.Reflection;
+using System.Reflection;
 
-namespace Specky7;
+namespace TripleG3.Specky;
 
 /// <summary>
 /// Configuration container for a single Specky registration invocation.

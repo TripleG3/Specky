@@ -1,7 +1,7 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using Specky7;
+using Microsoft.Extensions.DependencyInjection;
+using TripleG3.Specky;
 
-namespace Specky7.Tests;
+namespace TripleG3.Specky.Tests;
 internal class A_Foo : IFooId, IFooTime
 {
     public int Id { get; set; }

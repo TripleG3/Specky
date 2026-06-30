@@ -1,4 +1,4 @@
-# Specky7
+# TripleG3.Specky
 
 Simple, attribute‑driven service registration for `Microsoft.Extensions.DependencyInjection` (.NET 6+).
 
@@ -23,13 +23,13 @@ Stop writing repetitive `AddScoped<,>()`, `AddSingleton<>()`, and boilerplate co
 1. Install the package (placeholder id, adjust if different):
 
     ```bash
-    dotnet add package Specky7
+    dotnet add package TripleG3.Specky
     ```
 
 2. Annotate a class:
 
     ```csharp
-    using Specky7;
+    using TripleG3.Specky;
 
     [Scoped]
     public class TimeProvider { public DateTime Now() => DateTime.UtcNow; }
@@ -79,7 +79,7 @@ public class FooBar : IFoo, IBar { }
 Prefer a central declaration over scattered attributes? Define an interface, mark it with `[SpeckyConfiguration]`, and list members whose types you want registered.
 
 ```csharp
-using Specky7;
+using TripleG3.Specky;
 
 [SpeckyConfiguration]
 public interface ICoreServices
@@ -182,7 +182,7 @@ app.MapGet("/time", (Clock c) => c.Now());
 app.Run();
 
 // Clock.cs
-using Specky7;
+using TripleG3.Specky;
 [Singleton] public class Clock { public DateTime Now() => DateTime.UtcNow; }
 ```
 

@@ -19,7 +19,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\Specky7\Specky7.csproj" />
+		<ProjectReference Include="..\TripleG3.Specky\TripleG3.Specky.csproj" />
 	</ItemGroup>
 
 </Project>

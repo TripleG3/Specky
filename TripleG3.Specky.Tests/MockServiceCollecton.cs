@@ -1,7 +1,7 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using System.Collections;
 
-namespace Specky7.Tests;
+namespace TripleG3.Specky.Tests;
 
 internal class MockServiceCollecton : IServiceCollection
 {
